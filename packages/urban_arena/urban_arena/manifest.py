@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -62,6 +62,14 @@ class HousingParameters(StrictModel):
     annual_retirement_rate: float = Field(ge=0, le=1)
     initial_units: int | None = Field(default=None, ge=0)
     initial_units_method: str
+    district_allocation_method: Literal[
+        "proportional_to_existing_stock_largest_remainder"
+    ] = Field(
+        description=(
+            "Regra contábil versionada para distribuir totais agregados; não prevê "
+            "em quais distritos ocorre construção ou retirada."
+        )
+    )
 
 
 class EmploymentParameters(StrictModel):
@@ -171,6 +179,7 @@ def build_aurora_synthetic_v1_manifest(
             "annual_retirement_rate": 0.003,
             "initial_units": None,
             "initial_units_method": "ceil(round_half_up(urban_residents / household_size) / (1 - vacancy_rate_target))",
+            "district_allocation_method": "proportional_to_existing_stock_largest_remainder",
         },
         "employment": {
             "annual_growth_rate": 0.01,
