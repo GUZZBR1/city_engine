@@ -42,13 +42,15 @@ filled with zero.
 from traffic_observations import evaluate_csv_files, write_evaluation_artifact
 
 report = evaluate_csv_files(
-    "observed.csv",
-    "sumo-detector-output.csv",
+    "confirmed-observed.csv",
+    "confirmed-sumo-measurements.csv",
     seed=17,
     sumo_version="1.26.0",
     additional_inputs={
-        "network": "west-gate.net.xml",
+        "network": "confirmed-network.net.xml",
+        "mapping": "confirmed-detector-mapping.json",
         "independent_demand": "boundary-demand.json",
+        "protocol": "frozen-evaluation-protocol.json",
     },
 )
 write_evaluation_artifact(report, "evaluation.json")
