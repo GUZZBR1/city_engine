@@ -28,3 +28,14 @@ is process-local and replaceable; it is not durable event streaming.
 See [`docs/datasets/traffic-observation-mvp.md`](../../docs/datasets/traffic-observation-mvp.md)
 for the four-dataset audit, scientific boundaries, replay endpoints, and future
 calibration/validation gates.
+
+## Evaluation metric units
+
+In `traffic_observations.evaluation`, `volume_vehicles` and its MAE, RMSE, and
+bias are actual vehicles counted in each matched interval. GEH is computed
+after converting both observed and simulated interval counts to hourly-equivalent
+rates (`count * 3600 / interval_seconds`), so `volume_geh` compares veh/h even
+when the input bins are 15 minutes. A 15-minute pair of 5 and 7 vehicles is
+therefore evaluated as 20 and 28 veh/h for GEH, while MAE and bias remain 2
+vehicles per 15-minute interval. The interval duration comes from the matched
+start and end timestamps. A zero/zero pair has GEH 0; speed has no GEH.

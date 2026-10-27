@@ -11,6 +11,18 @@ from .models import (
     SupportingArtifact,
     TrafficObservation,
 )
+from .evaluation import (
+    EvaluationArtifact,
+    EvaluationManifest,
+    InputArtifact,
+    IntervalError,
+    IntervalMeasurement,
+    MeasurementMetrics,
+    MetricSummary,
+    compare_intervals,
+    evaluate_csv_files,
+    write_evaluation_artifact,
+)
 from .replay import (
     InMemoryObservationStore,
     ReplayControlError,
@@ -38,7 +50,14 @@ __all__ = [
     "VIC_TIRTL_SOURCE_URL",
     "DatasetManifest",
     "DatasetSourceError",
+    "EvaluationArtifact",
+    "EvaluationManifest",
+    "InputArtifact",
     "InMemoryObservationStore",
+    "IntervalError",
+    "IntervalMeasurement",
+    "MeasurementMetrics",
+    "MetricSummary",
     "ObservationType",
     "ProvenanceKind",
     "ReplayControlError",
@@ -54,4 +73,7 @@ __all__ = [
     "TrafficObservation",
     "UnsupportedSourceFilter",
     "VictoriaTirtlZipAdapter",
+    "compare_intervals",
+    "evaluate_csv_files",
+    "write_evaluation_artifact",
 ]
