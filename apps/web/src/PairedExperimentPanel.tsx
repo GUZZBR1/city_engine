@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createPairedExperiment, computePolicySha256, fetchPairedExperiment, pairOutcome, retryPairedExperiment, type CreateExperimentInput, type DeltaValue, type ExpectedExperimentPlan, type MetricValue, type PairedExperiment, type MultiSeedBudget, type StrategyInput } from './pairedExperiment';
+import { cancelPairedExperiment, createPairedExperiment, computePolicySha256, fetchPairedExperiment, pairOutcome, retryPairedExperiment, type CreateExperimentInput, type DeltaValue, type ExpectedExperimentPlan, type MetricValue, type PairedExperiment, type MultiSeedBudget, type StrategyInput } from './pairedExperiment';
 import './PairedExperimentPanel.css';
 
 const windowOptions = [
@@ -108,18 +108,19 @@ function PairList({ experiment }: { experiment: PairedExperiment }) {
   </section>;
 }
 
-function ExperimentDetails({ experiment, onRetry, onResume, busy }: { experiment: PairedExperiment; onRetry: () => void; onResume: () => void; busy: boolean }) {
+export function ExperimentDetails({ experiment, onRetry, onResume, onCancel, busy }: { experiment: PairedExperiment; onRetry: () => void; onResume: () => void; onCancel: () => void; busy: boolean }) {
   const active = experiment.status === 'queued' || experiment.status === 'running';
   return <div className="paired-experiment-result">
     <div className="paired-overview"><div><p className="eyebrow">EXPERIMENTO · {experiment.dto_schema_version} / PROTOCOLO {experiment.protocol_version}</p><h3>{experiment.experiment_id}</h3></div><span className={statusClass(experiment.status)} role="status">{statusLabel[experiment.status]}</span></div>
     <div className="paired-counts" aria-label="Contagem de pares"><div><strong>{experiment.planned_pairs}</strong><span>Planejados</span></div><div><strong>{experiment.completed_pairs}</strong><span>Completos</span></div><div><strong>{experiment.failed_pairs}</strong><span>Falhos</span></div><div><strong>{experiment.running_pairs}</strong><span>Em execução</span></div><div><strong>{experiment.missing_pairs}</strong><span>Faltantes</span></div></div>
     <p className="paired-sr-only" aria-live="polite">Estado {statusLabel[experiment.status]}. Planejados {experiment.planned_pairs}; completos {experiment.completed_pairs}; falhos {experiment.failed_pairs}; em execução {experiment.running_pairs}; faltantes {experiment.missing_pairs}.</p>
     {experiment.status === 'partial' && <div className="paired-missing" role="status"><strong>Resultado parcial e incompleto.</strong> Os resumos são apenas descritivos de pares completos, sujeitos à seleção por falhas. IC inferencial está oculto nesta apresentação.</div>}
-    {active && <p className="paired-live" role="status" aria-live="polite">Atualizando o experimento automaticamente…</p>}
+    {active && <p className="paired-live" role="status" aria-live="polite">{experiment.cancellation_requested ? 'Cancelamento solicitado; aguardando a interrupção cooperativa…' : 'Atualizando o experimento automaticamente…'}</p>}
     <dl className="paired-manifest"><div><dt>Manifesto do experimento</dt><dd>{experiment.manifest_sha256}</dd></div><div><dt>Manifesto da Arena referenciado</dt><dd>{experiment.arena_manifest_id} · {experiment.arena_manifest_sha256}</dd></div><div><dt>Execuções planejadas</dt><dd>{experiment.planned_executions}</dd></div><div><dt>SUMO utilizado</dt><dd>{experiment.sumo_runs_used} · {experiment.wall_clock_seconds_used}s usados · {experiment.reserved_wall_clock_seconds}s reservados</dd></div><div><dt>Manifesto congelado</dt><dd><details><summary>Ver parâmetros e proveniência</summary><pre>{JSON.stringify(experiment.manifest,null,2)}</pre></details></dd></div></dl>
     <dl className="paired-manifest"><div><dt>Código de erro</dt><dd>{experiment.error_code ?? 'Não informado'}</dd></div><div><dt>Motivo de parada</dt><dd>{experiment.stop_reason ?? 'Não informado'}</dd></div></dl><SummaryTable experiment={experiment} />
     <PairList experiment={experiment} />
     <section className="paired-caveats" aria-labelledby="paired-limitations-title"><h3 id="paired-limitations-title">Escopo e limites de interpretação</h3><ul>{experiment.limitations.map((item) => <li key={item}>{item.replaceAll('_', ' ')}</li>)}</ul><p>Aurora, a rede, a demanda e as intervenções são sintéticas. Resultados SUMO cobrem somente a janela e o escoamento configurado; filas agregam a rede e tempo/velocidade cobrem viagens concluídas até o fim do escoamento. Não há efeito isolado nos veículos expostos. Resultados não são anualizados e não sustentam inferência sobre tráfego real nem alegação causal. `route_exposure` indica passagem de uma rota pela área alterada; não segmenta resultados nem identifica veículos afetados.</p></section>
+    {active && !experiment.cancellation_requested && <div className="paired-actions"><button className="quiet-button paired-cancel" type="button" disabled={busy} onClick={onCancel}>{busy ? 'Solicitando cancelamento…' : 'Cancelar experimento'}</button></div>}
     {experiment.status === 'partial' || experiment.status === 'failed' ? <div className="paired-actions"><button className="quiet-button" type="button" disabled={busy} onClick={onRetry}>Atualizar estado</button><button className="primary-button" type="button" disabled={busy} onClick={onResume}>{busy ? 'Solicitando retomada…' : 'Retomar pares incompletos'}</button></div> : null}
   </div>;
 }
@@ -173,6 +174,7 @@ export function PairedExperimentPanel() {
   };
 
   const resume = async () => { if (!experiment || !['partial','failed'].includes(experiment.status)) return; setBusy(true); setError(''); try { const updated = await retryPairedExperiment(experiment.experiment_id, expectedPlan ?? undefined); setExperiment(updated); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível retomar pares incompletos.'); } finally { setBusy(false); } };
+  const cancel = async () => { if (!experiment || !['queued','running'].includes(experiment.status) || experiment.cancellation_requested) return; setBusy(true); setError(''); try { const response = await cancelPairedExperiment(experiment.experiment_id); const updated = await fetchPairedExperiment(response.experiment_id, undefined, expectedPlan ?? undefined); setExperiment(updated); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível cancelar o experimento.'); } finally { setBusy(false); } };
 
   return <section className="simulation-panel paired-panel" aria-labelledby="paired-experiment-title">
     <div className="section-heading"><div><p className="eyebrow">PROTOCOLO DE EXPERIMENTO PAREADO · MULTI-SEED</p><h2 id="paired-experiment-title">Experimento SUMO por janela</h2></div><span className="synthetic-pill">AURORA SINTÉTICA</span></div>
@@ -180,6 +182,6 @@ export function PairedExperimentPanel() {
     <ExperimentCreateForm onCreated={(created, input) => { setExperiment(created); setExpectedPlan({ window_ids: input.window_ids, strategies: input.strategies, seeds: input.seeds, metrics: input.metrics, primary_metrics: input.primary_metrics }); setLookupId(created.experiment_id); setFailedLookupId(''); setError(''); }} />
     <form className="paired-lookup" onSubmit={lookup}><label htmlFor="paired-lookup-id">Acompanhar experimento existente</label><input id="paired-lookup-id" value={lookupId} onChange={(event) => setLookupId(event.target.value)} placeholder="experiment_id" required /><button className="quiet-button" disabled={busy} type="submit">{busy ? 'Carregando…' : 'Carregar'}</button></form>
     {error && <div className="paired-error" role="alert"><strong>Não foi possível carregar ou atualizar o experimento.</strong><p>{error}</p><button className="quiet-button" type="button" disabled={busy} onClick={retry}>Tentar novamente</button></div>}
-    {experiment && <ExperimentDetails experiment={experiment} onRetry={retry} onResume={resume} busy={busy} />}
+    {experiment && <ExperimentDetails experiment={experiment} onRetry={retry} onResume={resume} onCancel={cancel} busy={busy} />}
   </section>;
 }
