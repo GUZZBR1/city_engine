@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from app import arena_jobs, main
 from app.arena_schemas import ArenaRequest
+from urban_arena.actions import ActionExecutionEvidence
 from fastapi import BackgroundTasks, HTTPException
 
 
@@ -10,6 +11,7 @@ from fastapi import BackgroundTasks, HTTPException
 def isolated_arena_jobs(monkeypatch):
     # The API store is process-local; each test owns a fresh mapping.
     monkeypatch.setattr(arena_jobs, "_jobs", {})
+    monkeypatch.setattr(arena_jobs.shutil, "which", lambda _name: None)
 
 
 def _post_arena(horizon_rounds: int = 1):
@@ -104,6 +106,44 @@ def test_arena_accepts_minimum_and_maximum_horizons_and_uses_five_unique_policie
     assert completed.completed_rounds == 10
     assert {item.current_round_index for item in completed.instances} == {10}
     assert len(completed.rounds) == 10
+
+
+def test_sumo_available_arena_compares_four_signal_policies_with_a_reference(monkeypatch):
+    monkeypatch.setattr(arena_jobs.shutil, "which", lambda name: f"/fake/bin/{name}")
+
+    class FakeEvaluator:
+        def __init__(self, inputs):
+            self.inputs = inputs
+
+        def __call__(self, proposal, observation, context):
+            return ActionExecutionEvidence(
+                executor_id="test-sumo",
+                evidence_type="paired_sumo_window_comparison",
+                action_ids=tuple(action.action_id for action in proposal.actions),
+                details={
+                    "scope": "simulation_window",
+                    "snapshot_hash": self.inputs.snapshot_hash,
+                    "window_id": self.inputs.window.id,
+                    "seed": 42,
+                },
+            )
+
+    monkeypatch.setattr(arena_jobs, "ArenaSignalSumoEvaluator", FakeEvaluator)
+    created, _ = _post_arena(1)
+    record = arena_jobs._jobs[created.arena.arena_id]
+    assert len(record.policies) == 5
+    assert sum(bool(policy.signal_changes) for policy in record.policies if hasattr(policy, "signal_changes")) == 4
+
+    arena_jobs.run_arena(created.arena.arena_id)
+    completed = arena_jobs.get_arena(created.arena.arena_id)
+
+    assert completed.status == "succeeded"
+    round_instances = completed.rounds[0].instances
+    assert sum(item.action_execution_evidence is not None for item in round_instances) == 4
+    for item in round_instances:
+        if item.action_execution_evidence is not None:
+            assert item.action_execution_evidence["details"]["scope"] == "simulation_window"
+            assert item.decision.accepted
 
 
 @pytest.mark.parametrize("horizon_rounds", [0, 11])

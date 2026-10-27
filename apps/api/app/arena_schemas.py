@@ -231,6 +231,7 @@ class ArenaRoundInstanceDTO(BaseModel):
     instance_id: str
     proposal: ArenaProposalDTO
     decision: ArenaDecisionDTO
+    action_execution_evidence: dict[str, Any] | None = None
     indicators: list[ArenaIndicatorDTO]
     observed_city_state_hash: str
     parent_city_state_hash: str

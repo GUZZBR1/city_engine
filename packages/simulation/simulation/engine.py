@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Sequence
 from typing import Any
 
 from .models import (
@@ -31,6 +32,7 @@ def run_simulation(
     engine: SimulationEngine | None = None,
     limits: SimulationLimits | None = None,
     signal_timing_intervention: SignalTimingIntervention | None = None,
+    signal_timing_interventions: Sequence[SignalTimingIntervention] | None = None,
 ) -> SimulationResult:
     """Run one simulation without FastAPI; this is the package's stable call surface.
 
@@ -46,7 +48,14 @@ def run_simulation(
         )
     if inputs.city_id != city_id:
         raise SimulationError("invalid_input", f"O contrato pertence a '{inputs.city_id}', não a '{city_id}'.")
-    if signal_timing_intervention is not None:
+    if signal_timing_intervention is not None and signal_timing_interventions is not None:
+        raise SimulationError(
+            "invalid_scenario",
+            "Use a intervenção semafórica singular ou o pacote, não ambos.",
+        )
+    if signal_timing_interventions is not None:
+        inputs = apply_signal_timing_interventions(inputs, signal_timing_interventions)
+    elif signal_timing_intervention is not None:
         inputs = apply_signal_timing_intervention(inputs, signal_timing_intervention)
     return (engine or SumoEngine()).run(inputs, seed=seed, limits=limits)
 
@@ -56,30 +65,56 @@ def apply_signal_timing_intervention(
     intervention: SignalTimingIntervention,
 ) -> SimulationInput:
     """Return a copy changing only declared phase durations on one signal."""
-    if intervention.node_id not in {node.id for node in inputs.nodes}:
-        raise SimulationError("invalid_scenario", f"Nó '{intervention.node_id}' não existe no snapshot.")
-    signal_index = next((i for i, signal in enumerate(inputs.traffic_signals) if signal.node_id == intervention.node_id), None)
-    if signal_index is None:
-        raise SimulationError("invalid_scenario", f"O nó '{intervention.node_id}' não possui controlador semafórico.")
+    return apply_signal_timing_interventions(inputs, (intervention,))
 
-    signal = inputs.traffic_signals[signal_index]
+
+def apply_signal_timing_interventions(
+    inputs: SimulationInput,
+    interventions: Sequence[SignalTimingIntervention],
+) -> SimulationInput:
+    """Validate and atomically apply up to two signal timing interventions."""
+    if len(interventions) > 2:
+        raise SimulationError("invalid_scenario", "O pacote aceita no máximo duas intervenções semafóricas.")
+
+    node_ids = [intervention.node_id for intervention in interventions]
+    if len(node_ids) != len(set(node_ids)):
+        raise SimulationError("invalid_scenario", "O pacote não pode alterar o mesmo nó mais de uma vez.")
+
+    node_ids_in_input = {node.id for node in inputs.nodes}
+    signal_indices: dict[str, int] = {}
+    for index, signal in enumerate(inputs.traffic_signals):
+        signal_indices.setdefault(signal.node_id, index)
     expected_order = ("north_south", "all_red", "east_west", "all_red")
-    if tuple(phase.movement for phase in intervention.phases) != expected_order:
-        raise SimulationError("invalid_scenario", "As fases devem seguir a ordem norte-sul, todos vermelhos, leste-oeste, todos vermelhos.")
-    if tuple(phase.movement for phase in signal.phases) != expected_order:
-        raise SimulationError("invalid_scenario", f"O programa-base de '{intervention.node_id}' não corresponde à ordem de fases esperada.")
-    base_cycle = sum(phase.duration_seconds for phase in signal.phases)
-    if sum(phase.duration_seconds for phase in intervention.phases) != base_cycle:
-        raise SimulationError("invalid_scenario", f"A intervenção deve preservar o ciclo total de {base_cycle} segundos.")
+    replacements: dict[int, TrafficSignal] = {}
 
-    changed_signal = signal.model_copy(update={
-        "phases": tuple(
-            SignalPhase(movement=base_phase.movement, duration_seconds=override.duration_seconds)
-            for base_phase, override in zip(signal.phases, intervention.phases, strict=True)
-        ),
-    })
+    # Validate every intervention against the original input before producing a copy.
+    for intervention in interventions:
+        if intervention.node_id not in node_ids_in_input:
+            raise SimulationError("invalid_scenario", f"Nó '{intervention.node_id}' não existe no snapshot.")
+        signal_index = signal_indices.get(intervention.node_id)
+        if signal_index is None:
+            raise SimulationError("invalid_scenario", f"O nó '{intervention.node_id}' não possui controlador semafórico.")
+
+        signal = inputs.traffic_signals[signal_index]
+        if tuple(phase.movement for phase in intervention.phases) != expected_order:
+            raise SimulationError("invalid_scenario", "As fases devem seguir a ordem norte-sul, todos vermelhos, leste-oeste, todos vermelhos.")
+        if tuple(phase.movement for phase in signal.phases) != expected_order:
+            raise SimulationError("invalid_scenario", f"O programa-base de '{intervention.node_id}' não corresponde à ordem de fases esperada.")
+        base_cycle = sum(phase.duration_seconds for phase in signal.phases)
+        intervention_cycle = sum(phase.duration_seconds for phase in intervention.phases)
+        if intervention_cycle <= 0 or intervention_cycle != base_cycle:
+            raise SimulationError("invalid_scenario", f"A intervenção deve preservar o ciclo total de {base_cycle} segundos.")
+
+        replacements[signal_index] = signal.model_copy(update={
+            "phases": tuple(
+                SignalPhase(movement=base_phase.movement, duration_seconds=override.duration_seconds)
+                for base_phase, override in zip(signal.phases, intervention.phases, strict=True)
+            ),
+        })
+
     signals = list(inputs.traffic_signals)
-    signals[signal_index] = changed_signal
+    for signal_index, changed_signal in replacements.items():
+        signals[signal_index] = changed_signal
     return inputs.model_copy(update={"traffic_signals": tuple(signals)})
 
 

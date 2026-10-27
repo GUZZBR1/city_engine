@@ -75,3 +75,13 @@ versions, with object keys sorted and geometry features sorted by stable ID.
 It excludes the hash and `snapshot_id` fields themselves. Adding explicit
 traffic configuration changes the hash deterministically. Agent copies are
 deep copies whose initial hash remains the source snapshot hash.
+
+## Signal policy benchmark
+
+`FixedSignalTimingPolicy` emits deterministic, versioned signal timing
+proposals for exercising arbitration and an injected mobility evaluator. These
+fixed rules are synthetic benchmark strategies, not trained AI policies. The
+default action catalog keeps signal, housing, and service actions unavailable.
+A caller must supply a catalog, valid signal targets, and an executor before a
+proposal can be applied. Executor evidence is recorded on the round record,
+separate from `CityState` and annual indicators.

@@ -6,7 +6,15 @@ from dataclasses import dataclass, replace
 
 import pytest
 
-from urban_arena.actions import ActionProposal, HousingParameters, ProposedAction
+from urban_arena.actions import (
+    ActionCatalog,
+    ActionDefinition,
+    ActionExecutionEvidence,
+    ActionProposal,
+    HousingParameters,
+    ProposedAction,
+    SignalTarget,
+)
 from urban_arena.arena import ArenaRunner, ParticipantFailure, ProposalConflictError
 from urban_arena.city import generate_snapshot, load_city_config
 from urban_arena.policies import DeterministicReferencePolicy
@@ -20,6 +28,42 @@ def _snapshot():
 
 def _policies():
     return [DeterministicReferencePolicy(agent_id=f"agent-{index}") for index in range(5)]
+
+
+def _signal_catalog():
+    return ActionCatalog(actions=(
+        ActionDefinition(
+            action_type="signal_timing_change",
+            enabled=True,
+            setup_cost_cs=2,
+            operation_cost_cs=1,
+        ),
+        ActionDefinition(
+            action_type="housing_add_units",
+            enabled=False,
+            unavailable_reason="housing_inventory_unavailable",
+            setup_cost_cs=8,
+        ),
+        ActionDefinition(
+            action_type="service_capacity_contract",
+            enabled=False,
+            unavailable_reason="service_inventory_unavailable",
+            setup_cost_cs=6,
+            operation_cost_cs=2,
+        ),
+    ))
+
+
+def _signal_targets():
+    return (SignalTarget(
+        node_id="node:01:01",
+        phases=(
+            {"movement": "north_south", "duration_s": 25},
+            {"movement": "all_red", "duration_s": 2},
+            {"movement": "east_west", "duration_s": 30},
+            {"movement": "all_red", "duration_s": 2},
+        ),
+    ),)
 
 
 @dataclass
@@ -52,6 +96,47 @@ class CountingPolicy:
             if self.action
             else []
         )
+        content = {**identity, "actions": [item.model_dump(mode="json") for item in action_list]}
+        canonical = json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        proposal_id = hashlib.sha256(canonical.encode()).hexdigest()
+        idempotency_key = hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        return ActionProposal(
+            experiment_id=str(identity["experiment_id"]),
+            proposal_id=proposal_id,
+            idempotency_key=idempotency_key,
+            agent_id=self.agent_id,
+            instance_id=observation.instance_id,
+            round_index=observation.round_index,
+            observed_city_state_hash=observation.city_state_hash,
+            actions=tuple(action_list),
+        )
+
+
+@dataclass
+class SignalPolicy(CountingPolicy):
+    def propose(self, observation) -> ActionProposal:
+        self.calls += 1
+        identity = {
+            "experiment_id": observation.state_view["experiment_id"],
+            "instance_id": observation.instance_id,
+            "round_index": observation.round_index,
+            "agent_id": self.agent_id,
+            "policy_id": self.policy_id,
+            "policy_version": self.policy_version,
+        }
+        action_list = [ProposedAction(
+            action_id="signal-1",
+            action_type="signal_timing_change",
+            target_id="node:01:01",
+            parameters={"phases": [
+                {"movement": "north_south", "duration_s": 30},
+                {"movement": "all_red", "duration_s": 2},
+                {"movement": "east_west", "duration_s": 25},
+                {"movement": "all_red", "duration_s": 2},
+            ]},
+        )]
         content = {**identity, "actions": [item.model_dump(mode="json") for item in action_list]}
         canonical = json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         proposal_id = hashlib.sha256(canonical.encode()).hexdigest()
@@ -243,3 +328,85 @@ def test_round_engine_produces_no_universal_ranking_or_winner() -> None:
     assert not hasattr(runner, "ranking")
     assert not hasattr(runner, "winner")
     assert not any(hasattr(record, "score") for record in records)
+
+
+def test_enabled_signal_without_executor_fails_closed_before_commit() -> None:
+    runner = ArenaRunner(
+        _snapshot(),
+        "test-experiment",
+        catalog=_signal_catalog(),
+        signal_targets=_signal_targets(),
+    )
+    before = [runner.state_copy(instance.instance_id).city_state_hash for instance in runner.instances]
+
+    with pytest.raises(RuntimeError, match="sem executor injetado"):
+        runner.run_round(1, [SignalPolicy(agent_id=f"agent-{index}") for index in range(5)])
+
+    assert [runner.state_copy(instance.instance_id).city_state_hash for instance in runner.instances] == before
+
+
+def test_executor_runs_only_for_accepted_actions_and_evidence_is_hashed() -> None:
+    calls = []
+
+    def execute(proposal, observation, context):
+        calls.append((proposal.proposal_id, observation.city_state_hash, context.signal_targets))
+        return ActionExecutionEvidence(
+            executor_id="test-adapter",
+            evidence_type="sumo_window_comparison",
+            action_ids=tuple(action.action_id for action in proposal.actions),
+            details={"window": "am_peak", "delay_delta_seconds": -4.2},
+        )
+
+    runner = ArenaRunner(
+        _snapshot(),
+        "test-experiment",
+        catalog=_signal_catalog(),
+        signal_targets=_signal_targets(),
+        action_executor=execute,
+    )
+    records = runner.run_round(1, [SignalPolicy(agent_id=f"agent-{index}") for index in range(5)])
+
+    assert len(calls) == 5
+    assert all(record.decision.accepted for record in records)
+    assert all(record.action_execution_evidence is not None for record in records)
+    assert all(
+        record.action_execution_evidence.model_dump(mode="json")["details"]["window"] == "am_peak"
+        for record in records
+    )
+    changed_evidence = records[0].action_execution_evidence.model_copy(
+        update={"details": {"window": "pm_peak", "delay_delta_seconds": 3.0}}
+    )
+    assert replace(records[0], action_execution_evidence=changed_evidence).round_record_hash != records[0].round_record_hash
+
+    rejected_calls = []
+    rejected_runner = ArenaRunner(
+        _snapshot(),
+        "test-experiment-rejected",
+        catalog=_signal_catalog(),
+        action_executor=lambda *args: rejected_calls.append(args),
+    )
+    rejected = rejected_runner.run_round(
+        1,
+        [SignalPolicy(agent_id=f"agent-{index}") for index in range(5)],
+    )
+    assert all(not record.decision.accepted for record in rejected)
+    assert rejected_calls == []
+
+
+def test_executor_failure_leaves_entire_round_uncommitted() -> None:
+    runner = ArenaRunner(
+        _snapshot(),
+        "test-experiment-failure",
+        catalog=_signal_catalog(),
+        signal_targets=_signal_targets(),
+        action_executor=lambda *args: (_ for _ in ()).throw(RuntimeError("adapter failure")),
+    )
+    before = [runner.state_copy(instance.instance_id).city_state_hash for instance in runner.instances]
+
+    with pytest.raises(RuntimeError, match="adapter failure"):
+        runner.run_round(1, [SignalPolicy(agent_id=f"agent-{index}") for index in range(5)])
+
+    assert [runner.state_copy(instance.instance_id).city_state_hash for instance in runner.instances] == before
+    assert all(state.round_index == 0 for state in runner.repository.load_states())
+    with pytest.raises(KeyError, match="round records não encontrados"):
+        runner.repository.recorded_round(runner.experiment_id, 1)

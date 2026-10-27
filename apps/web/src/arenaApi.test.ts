@@ -42,6 +42,16 @@ function makePublishedRound() {
   })) };
 }
 
+function makeEvidence() {
+  const metrics = { trips_requested: 10, trips_completed: 9, trips_not_completed: 1, mean_travel_time_seconds: 120, mean_speed_kmh: 24, mean_queue_length_meters: 8 };
+  return { executor_id: 'sumo-arena-signal-v1', evidence_type: 'paired_sumo_window_comparison', action_ids: ['signal-1'], details: {
+    scope: 'simulation_window', provenance: 'synthetic', city_id: 'aurora-base-v1', snapshot_id: 'snapshot-1', snapshot_hash: 'snapshot-hash',
+    window_id: 'weekday-am', route_exposure: 'exposed', seed: 42, engine: 'sumo', engine_version: '1.20', base_simulation_id: 'base-run', intervention_simulation_id: 'action-run',
+    base_metrics: metrics, intervention_metrics: { ...metrics, mean_travel_time_seconds: 110 },
+    deltas: { ...metrics, mean_travel_time_seconds: -10 }, limitations: ['janela sintética'],
+  } };
+}
+
 describe('Arena API client', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -96,6 +106,36 @@ describe('Arena API client', () => {
     expect(result.instances[0].current_state).toBeNull();
     expect(result.rounds[0].instances[0].indicators[0].value).toBeNull();
     expect(result.rounds[0].instances[0].indicators[0].coverage.denominator).toBe(0);
+  });
+
+  it('accepts valid action evidence while keeping it optional for older round records', async () => {
+    const round = makePublishedRound();
+    (round.instances[0] as typeof round.instances[number] & { action_execution_evidence: unknown }).action_execution_evidence = makeEvidence();
+    const arena = makeArena({ status: 'succeeded', committed_rounds: 1, completed_rounds: 1, rounds: [round] });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ arena }), { status: 200 })));
+    const parsed = await fetchArena('arena-1');
+    expect(parsed.rounds[0].instances[0].action_execution_evidence).toMatchObject(makeEvidence());
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ arena: makeArena({ status: 'succeeded', committed_rounds: 1, completed_rounds: 1, rounds: [makePublishedRound()] }) }), { status: 200 })));
+    const legacyParsed = await fetchArena('arena-1');
+    expect(legacyParsed.rounds[0].instances[0].action_execution_evidence).toBeUndefined();
+  });
+
+  it('rejects malformed action execution evidence fields and metric maps', async () => {
+    for (const evidence of [
+      { ...makeEvidence(), executor_id: 42 },
+      { ...makeEvidence(), evidence_type: null },
+      { ...makeEvidence(), action_ids: ['ok', 1] },
+      { ...makeEvidence(), details: null },
+      { ...makeEvidence(), details: { ...makeEvidence().details, seed: '42' } },
+      { ...makeEvidence(), details: { ...makeEvidence().details, base_metrics: { ...makeEvidence().details.base_metrics, mean_speed_kmh: 'fast' } } },
+    ]) {
+      const round = makePublishedRound();
+      (round.instances[0] as typeof round.instances[number] & { action_execution_evidence: unknown }).action_execution_evidence = evidence;
+      const arena = makeArena({ status: 'succeeded', committed_rounds: 1, completed_rounds: 1, rounds: [round] });
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ arena }), { status: 200 })));
+      await expect(fetchArena('arena-1')).rejects.toThrow(/action_execution_evidence/);
+      vi.unstubAllGlobals();
+    }
   });
 
   it('rejects malformed envelopes, identity, status and inconsistent counters', async () => {

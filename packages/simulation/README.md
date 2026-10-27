@@ -41,6 +41,20 @@ intervention = SignalTimingIntervention(
 result = run_simulation(signal_timing_intervention=intervention, seed=42)
 ```
 
+Use `apply_signal_timing_interventions()` to validate and apply a package of zero,
+one, or two interventions at once. It rejects duplicate target nodes and validates
+every intervention against the original input before returning a changed input.
+`run_simulation()` accepts the same package through
+`signal_timing_interventions`; the existing singular argument remains supported.
+Pass only one of the singular and plural arguments in a call.
+
+```python
+from simulation.engine import apply_signal_timing_interventions
+
+scenario = apply_signal_timing_interventions(base_input, (first_change, second_change))
+result = run_simulation(inputs=base_input, signal_timing_interventions=(first_change, second_change))
+```
+
 For a paired comparison, load one `SimulationInput`, then pass the same input,
 seed and `SimulationLimits` to both runs; pass the intervention only to the
 second. The resulting SUMO `.net.xml` changes only the target controller's

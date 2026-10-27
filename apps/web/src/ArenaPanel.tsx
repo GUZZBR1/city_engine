@@ -49,6 +49,26 @@ export interface ArenaPanelRoundInstance {
   roundRecordHash: string;
   decision: 'accepted' | 'rejected' | 'no_action';
   metrics: ArenaPanelMetric[];
+  actionExecutionEvidence?: ArenaPanelActionExecutionEvidence | null;
+}
+
+export interface ArenaPanelActionExecutionEvidence {
+  executorId: string;
+  evidenceType: string;
+  actionIds: string[];
+  windowId: string;
+  routeExposure: 'exposed' | 'not_exposed' | 'unknown';
+  seed: number;
+  engine: string;
+  engineVersion: string;
+  snapshotId: string;
+  snapshotHash: string;
+  baseSimulationId: string;
+  interventionSimulationId: string;
+  baseMetrics: Record<string, number | null>;
+  interventionMetrics: Record<string, number | null>;
+  deltas: Record<string, number | null>;
+  limitations: string[];
 }
 
 export interface ArenaPanelRound {
@@ -107,6 +127,11 @@ const statusLabels: Record<ArenaPanelStatus, string> = {
   failed: 'Falhou',
 };
 const formatNumber = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
+const routeExposureLabels = {
+  exposed: 'há rota completa que passa por ao menos um nó alterado',
+  not_exposed: 'nenhuma rota solicitada passa pelos nós alterados',
+  unknown: 'não foi possível verificar a exposição das rotas',
+} as const;
 const formatMetric = (metric: ArenaPanelMetric) => metric.value === null
   ? `Indisponível — ${metric.nullReason || 'motivo não informado'}`
   : `${formatNumber.format(metric.value)} ${metric.unit}`;
@@ -165,7 +190,7 @@ export function ArenaPanel({
         <div>
           <p className="arena-eyebrow">SIMULAÇÃO ANUAL</p>
           <h2 id="arena-panel-title">Arena anual · Aurora sintética</h2>
-          <p className="arena-panel-description">Cinco instâncias independentes com políticas de referência sem ações (<code>no_action</code>). Resultados sintéticos para exploração; sem ranking, vencedor ou score.</p>
+          <p className="arena-panel-description">Cinco instâncias independentes com estratégias determinísticas de benchmark: baseline e heurísticas semafóricas quando SUMO está disponível. Não são agentes de IA treinados. Resultados sintéticos para exploração; sem ranking, vencedor ou score.</p>
         </div>
         <span className="arena-synthetic-label"><span aria-hidden="true">◇</span> AURORA SINTÉTICA</span>
       </header>
@@ -249,6 +274,35 @@ export function ArenaPanel({
               })}</tbody>
             </table>
           </div>
+          {selectedInstances.some((result) => result.actionExecutionEvidence) && <section className="arena-action-evidence" aria-labelledby="arena-action-evidence-title">
+            <div className="arena-section-heading"><div><p className="arena-eyebrow">EVIDÊNCIA DE AÇÃO SEMAFÓRICA</p><h3 id="arena-action-evidence-title">Comparação SUMO por instância</h3></div></div>
+            <p className="arena-evidence-note">Comparação SIMULADA e sintética entre baseline e intervenção em uma única janela. Não anualize estes resultados nem os misture com indicadores urbanos anuais.</p>
+            {selectedInstances.filter((result) => result.actionExecutionEvidence).map((result) => {
+              const evidence = result.actionExecutionEvidence!;
+              const metrics = [
+                ['Viagens solicitadas', 'trips_requested', 'viagens'], ['Viagens concluídas', 'trips_completed', 'viagens'],
+                ['Viagens não concluídas', 'trips_not_completed', 'viagens'], ['Tempo médio de viagem', 'mean_travel_time_seconds', 's'],
+                ['Velocidade média', 'mean_speed_kmh', 'km/h'], ['Fila média', 'mean_queue_length_meters', 'm'],
+              ] as const;
+              const policy = viewModel.instances.find((instance) => instance.instanceId === result.instanceId);
+              return <article className="arena-evidence-card" key={result.instanceId} aria-label={`Evidência SUMO de ${result.instanceId}`}>
+                <h4>{policy?.policyId ?? result.instanceId} <small>· {result.instanceId}</small></h4>
+                <p className="arena-evidence-meta">Janela {evidence.windowId} · semente {evidence.seed} · {evidence.engine} {evidence.engineVersion}</p>
+                <p className="arena-evidence-meta">Exposição das rotas: {routeExposureLabels[evidence.routeExposure]}</p>
+                <p className="arena-evidence-actions">Ações: {evidence.actionIds.length ? evidence.actionIds.join(', ') : 'nenhuma ação identificada'}</p>
+                <div className="arena-table-scroll" tabIndex={0} aria-label={`Métricas da comparação SUMO de ${result.instanceId}`}>
+                  <table><caption>Baseline, intervenção e delta da janela {evidence.windowId} para {result.instanceId}</caption>
+                    <thead><tr><th scope="col">Métrica</th><th scope="col">Baseline</th><th scope="col">Intervenção</th><th scope="col">Delta</th></tr></thead>
+                    <tbody>{metrics.map(([label, key, unit]) => <tr key={key}><th scope="row">{label}</th>
+                      {[evidence.baseMetrics, evidence.interventionMetrics, evidence.deltas].map((values, index) => <td key={index}>{values[key] === null ? 'Indisponível' : `${formatNumber.format(values[key]!)} ${unit}`}</td>)}
+                    </tr>)}</tbody>
+                  </table>
+                </div>
+                <dl className="arena-evidence-hashes"><div><dt>Snapshot</dt><dd>{evidence.snapshotId}</dd></div><div><dt>Hash do snapshot</dt><dd><code>{evidence.snapshotHash}</code></dd></div></dl>
+                <ul className="arena-evidence-note">{evidence.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>
+              </article>;
+            })}
+          </section>}
           <details className="arena-round-details">
             <summary>Hashes e decisões confirmadas da rodada {chosenRoundIndex}</summary>
             <div className="arena-hash-list">{viewModel.instances.map((instance) => {

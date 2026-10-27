@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from .actions import (
     DEFAULT_ACTION_CATALOG,
     ActionCatalog,
+    ActionExecutionEvidence,
+    ActionProposal,
     ArbitrationContext,
+    SignalTarget,
     arbitrate_proposal,
 )
 from .budget import BudgetEnvelope
@@ -29,6 +32,11 @@ from .state import (
     StateFactory,
     StateTransitionResult,
 )
+
+ActionExecutor = Callable[
+    [ActionProposal, Observation, ArbitrationContext],
+    ActionExecutionEvidence,
+]
 from .transitions.employment import transition_employment
 from .transitions.environment import (
     estimate_annual_co2e,
@@ -51,10 +59,14 @@ class AnnualRoundEngine:
         *,
         catalog: ActionCatalog = DEFAULT_ACTION_CATALOG,
         budget_envelope: BudgetEnvelope | None = None,
+        signal_targets: Sequence[SignalTarget] = (),
+        action_executor: ActionExecutor | None = None,
     ) -> None:
         self.manifest = manifest
         self.catalog = catalog
         self.budget_envelope = budget_envelope or BudgetEnvelope()
+        self.signal_targets = tuple(signal_targets)
+        self.action_executor = action_executor
 
     def prepare_observation(
         self,
@@ -114,6 +126,7 @@ class AnnualRoundEngine:
             round_index=round_index,
             horizon_rounds=self.manifest.horizon_rounds,
             observed_city_state_hash=observation.city_state_hash,
+            signal_targets=self.signal_targets,
             existing_commitments_cs=existing_commitments_cs or {},
         )
         decision = arbitrate_proposal(
@@ -122,11 +135,18 @@ class AnnualRoundEngine:
             catalog=self.catalog,
             envelope=self.budget_envelope,
         )
+        execution_evidence = None
         if decision.accepted and proposal.actions:
-            # No action application adapter is integrated in this version. The
-            # default catalog keeps every action disabled, so fail closed if a
-            # future catalog enables an action without its state effect handler.
-            raise RuntimeError("ação aceita sem adaptador de aplicação integrado")
+            if self.action_executor is None:
+                raise RuntimeError("ação aceita sem executor injetado")
+            execution_evidence = ActionExecutionEvidence.model_validate(
+                self.action_executor(proposal, observation, context)
+            )
+            accepted_action_ids = tuple(
+                receipt.action_id for receipt in decision.actions if receipt.accepted
+            )
+            if execution_evidence.action_ids != accepted_action_ids:
+                raise ValueError("evidência do executor não corresponde às ações aceitas")
 
         transition_delta, candidate = self._run_annual_domains(
             parent,
@@ -155,6 +175,7 @@ class AnnualRoundEngine:
             indicator_results=indicators,
             state_transition=transition,
             observed_city_state_hash=observation.city_state_hash,
+            action_execution_evidence=execution_evidence,
         )
 
     def _apply_due_effects(self, candidate: CityState, round_index: int) -> CityState:
