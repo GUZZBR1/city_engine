@@ -62,7 +62,7 @@ Uma consulta OSM retornou as vias unidirecionais `West Gate Freeway/M1`, ambas t
 | Catálogo de fonte, provenance e observações históricas | **Sim**, com checksum, licença, versão, timestamps originais e referências preservados. |
 | Replay temporal isolado | **Sim**, sem preencher intervalos ausentes. |
 | Ingestão e atualização de estado observacional separado de Aurora | **Sim**, após persistência; as coordenadas permanecem sem geometria espacial enquanto o CRS não for confirmado. |
-| Perfil de fluxo/velocidade para o site 505 | **Exploração**, deixando claro que velocidade é derivada dos bins e que a associação ao edge ainda é provisória. |
+| Perfil de fluxo/velocidade para o site 505 | **Profiling descritivo dos registros de origem somente**; sem comparação com SUMO ou interpretação como medida de um edge até confirmação independente do mapping. |
 | OD/demanda da rede | **Não**; contagens pontuais não identificam viagens, origens, destinos ou rotas. |
 | Calibração/validação de corredor SUMO | **Ainda não**; requer detector→edge verificado, rede SUMO do local, demanda/rotas documentadas e período held-out. |
 | Calibração/validação de Aurora | **Não**; Aurora segue sendo uma cidade sintética em outra geografia e referência espacial. |
