@@ -1,6 +1,7 @@
 # Python environments, bytecode and build/test artifacts
 .venv/
 venv/
+apps/api/.data/
 __pycache__/
 *.py[cod]
 *.egg-info/
