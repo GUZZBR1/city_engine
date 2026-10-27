@@ -45,12 +45,12 @@ class CityState(StrictModel):
     transition_version: str = "1.0"
     parent_city_state_hash: str | None = None
     snapshot_hash: str
-    population: dict[str, int]
-    housing: dict[str, Any]
-    employment: dict[str, int]
-    services: dict[str, Any] = Field(default_factory=dict)
-    environment: dict[str, Any] = Field(default_factory=dict)
-    budget: dict[str, int | str]
+    population: PopulationState
+    housing: HousingState
+    employment: EmploymentState
+    services: ServicesState
+    environment: EnvironmentState
+    budget: BudgetState
     pending_effects: list[EffectiveEvent] = Field(default_factory=list)
     active_signal_plans: list[EffectiveEvent] = Field(default_factory=list)
 
@@ -62,10 +62,17 @@ class CityState(StrictModel):
             raise ValueError("snapshot_hash deve ser SHA-256 hexadecimal")
         if self.parent_city_state_hash is not None and not self._is_sha256(self.parent_city_state_hash):
             raise ValueError("parent_city_state_hash deve ser SHA-256 hexadecimal")
-        if any(not isinstance(value, int) or value < 0 for value in self.population.values()):
-            raise ValueError("population deve conter contagens inteiras não negativas")
-        if any(not isinstance(value, int) or value < 0 for value in self.employment.values()):
-            raise ValueError("employment deve conter contagens inteiras não negativas")
+        urban_ids = set(self.housing.units_by_district)
+        if urban_ids != set(self.services.school.demand_by_district):
+            raise ValueError("serviços escolares devem cobrir exatamente os distritos urbanos habitacionais")
+        if urban_ids != set(self.services.primary_health.demand_by_district):
+            raise ValueError("serviços de saúde devem cobrir exatamente os distritos urbanos habitacionais")
+        if urban_ids != set(self.environment.public_green_area_m2_by_district):
+            raise ValueError("área verde deve cobrir exatamente os distritos urbanos habitacionais")
+        if set(self.population.residents_by_district) != set(self.employment.jobs_by_district):
+            raise ValueError("população e emprego devem usar o mesmo catálogo de distritos")
+        if self.budget.fixed_operations + self.budget.reserve + self.budget.discretionary_budget != self.budget.credits_per_round:
+            raise ValueError("envelope do orçamento deve fechar com credits_per_round")
         return self
 
     @staticmethod
@@ -124,6 +131,30 @@ class StateFactory:
             initialization_method = params.housing.initial_units_method
         weights = {district_id: int(district["residents"]) for district_id, district in urban_districts.items()}
         allocation = StateFactory._allocate(total_units, weights)
+        school = {
+            district_id: float(urban_districts[district_id]["residents"])
+            for district_id in urban_districts
+        }
+        school_demand = {
+            district_id: residents * params.services.school.eligible_share
+            for district_id, residents in school.items()
+        }
+        school_capacity = {
+            district_id: residents * params.services.school.initial_seats_per_resident
+            for district_id, residents in school.items()
+        }
+        health_demand = {
+            district_id: residents * params.services.health.annual_visits_per_resident
+            for district_id, residents in school.items()
+        }
+        health_capacity = {
+            district_id: residents * params.services.health.initial_visits_per_resident_year
+            for district_id, residents in school.items()
+        }
+        green_area = {
+            district_id: residents * params.green.public_area_m2_per_resident[district_id]
+            for district_id, residents in school.items()
+        }
         return CityState(
             experiment_id=manifest.experiment_id,
             instance_id=instance_id,
@@ -132,19 +163,36 @@ class StateFactory:
             transition_version="1.0",
             parent_city_state_hash=None,
             snapshot_hash=snapshot.hash,
-            population={d["id"]: int(d["residents"]) for d in districts},
-            housing={
-                "initialization_method": initialization_method,
-                "occupied_households_reference_total": int(snapshot.household["occupied_households_derived"]),
-                "occupied_households_urban": occupied_urban,
-                "vacancy_rate_target": vacancy,
-                "units_by_district": allocation,
-                "total_units": total_units,
-            },
-            employment={d["id"]: int(d["jobs"]) for d in districts},
-            services={},
-            environment={},
-            budget={str(key): int(value) if isinstance(value, int) else str(value) for key, value in snapshot.finance.items()},
+            population=PopulationState(
+                residents_by_district={d["id"]: int(d["residents"]) for d in districts},
+                total_residents=snapshot.population.total,
+                urban_residents=snapshot.population.urban,
+                rural_catchment_residents=snapshot.population.rural_catchment,
+            ),
+            housing=HousingState(
+                initialization_method=initialization_method,
+                occupied_households_reference_total=int(snapshot.household["occupied_households_derived"]),
+                occupied_households_urban=occupied_urban,
+                vacancy_rate_target=vacancy,
+                units_by_district=allocation,
+                total_units=total_units,
+            ),
+            employment=EmploymentState(
+                jobs_by_district={d["id"]: int(d["jobs"]) for d in districts},
+                total_jobs=snapshot.jobs,
+            ),
+            services=ServicesState(
+                school=ServiceDomainState(demand_by_district=school_demand, capacity_by_district=school_capacity),
+                primary_health=ServiceDomainState(demand_by_district=health_demand, capacity_by_district=health_capacity),
+            ),
+            environment=EnvironmentState(public_green_area_m2_by_district=green_area),
+            budget=BudgetState(
+                currency=str(snapshot.finance["currency"]),
+                credits_per_round=int(snapshot.finance["credits_per_round"]),
+                fixed_operations=int(snapshot.finance["fixed_operations"]),
+                reserve=int(snapshot.finance["reserve"]),
+                discretionary_budget=int(snapshot.finance["discretionary_budget"]),
+            ),
         )
 
     @staticmethod
@@ -183,6 +231,103 @@ class StateFactory:
         for key in order[:remainder]:
             floors[key] += 1
         return floors
+
+
+class PopulationState(StrictModel):
+    """Resident counts by district and the normative total/urban/catchment split."""
+
+    residents_by_district: dict[str, int]
+    total_residents: int = Field(ge=0)
+    urban_residents: int = Field(ge=0)
+    rural_catchment_residents: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_totals(self) -> PopulationState:
+        if any(value < 0 for value in self.residents_by_district.values()):
+            raise ValueError("residentes por distrito devem ser não negativos")
+        if sum(self.residents_by_district.values()) != self.total_residents:
+            raise ValueError("residentes por distrito não fecham com total_residents")
+        if self.urban_residents + self.rural_catchment_residents != self.total_residents:
+            raise ValueError("população urbana e do entorno não fecha com total_residents")
+        return self
+
+
+class HousingState(StrictModel):
+    """Urban housing stock and occupied-household reference values."""
+
+    initialization_method: str
+    occupied_households_reference_total: int = Field(ge=0)
+    occupied_households_urban: int = Field(ge=0)
+    vacancy_rate_target: float = Field(ge=0, lt=1)
+    units_by_district: dict[str, int]
+    total_units: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_units(self) -> HousingState:
+        if any(value < 0 for value in self.units_by_district.values()):
+            raise ValueError("unidades habitacionais por distrito devem ser não negativas")
+        if sum(self.units_by_district.values()) != self.total_units:
+            raise ValueError("unidades por distrito não fecham com total_units")
+        return self
+
+
+class EmploymentState(StrictModel):
+    """Configured jobs by district and reconciled total."""
+
+    jobs_by_district: dict[str, int]
+    total_jobs: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_jobs(self) -> EmploymentState:
+        if any(value < 0 for value in self.jobs_by_district.values()):
+            raise ValueError("empregos por distrito devem ser não negativos")
+        if sum(self.jobs_by_district.values()) != self.total_jobs:
+            raise ValueError("empregos por distrito não fecham com total_jobs")
+        return self
+
+
+class ServiceDomainState(StrictModel):
+    """Annual demand and nominal capacity by urban district, in domain units."""
+
+    demand_by_district: dict[str, float]
+    capacity_by_district: dict[str, float]
+
+    @model_validator(mode="after")
+    def validate_service_values(self) -> ServiceDomainState:
+        if set(self.demand_by_district) != set(self.capacity_by_district):
+            raise ValueError("demanda e capacidade de serviço devem cobrir os mesmos distritos")
+        if any(not math.isfinite(value) or value < 0 for value in (*self.demand_by_district.values(), *self.capacity_by_district.values())):
+            raise ValueError("demanda e capacidade de serviço devem ser finitas e não negativas")
+        return self
+
+
+class ServicesState(StrictModel):
+    """Separate school and primary-health quantities; their units are not combined."""
+
+    school: ServiceDomainState
+    primary_health: ServiceDomainState
+
+
+class EnvironmentState(StrictModel):
+    """Configured synthetic public green area by urban district."""
+
+    public_green_area_m2_by_district: dict[str, float]
+
+    @model_validator(mode="after")
+    def validate_green_area(self) -> EnvironmentState:
+        if any(not math.isfinite(value) or value < 0 for value in self.public_green_area_m2_by_district.values()):
+            raise ValueError("área verde por distrito deve ser finita e não negativa")
+        return self
+
+
+class BudgetState(StrictModel):
+    """Frozen initial budget envelope; credits do not imply currency conversion."""
+
+    currency: str
+    credits_per_round: int = Field(ge=0)
+    fixed_operations: int = Field(ge=0)
+    reserve: int = Field(ge=0)
+    discretionary_budget: int = Field(ge=0)
 
 
 class EffectiveEvent(StrictModel):
