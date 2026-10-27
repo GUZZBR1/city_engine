@@ -1,6 +1,6 @@
 # Relatório de validação empírica — TIRTL West Gate Bridge
 
-**Versão:** 0.3 — harness de avaliação e auditoria de mapping, 2026-10-27
+**Versão:** 0.4 — rede SUMO reproduzível e gates empíricos, 2026-10-27
 
 **Resultado:** nenhuma baseline SUMO foi executada; não há calibração nem validação held-out.
 
@@ -25,9 +25,9 @@ O dicionário de sites não declara CRS, datum ou precisão das coordenadas. Tam
 
 ## 3. SUMO baseline
 
-**Status: não executada; métricas não calculadas.** O repositório não contém rede SUMO de West Gate Bridge, configuração ou rotas para Melbourne. O SUMO atual compila a rede sintética Aurora e calcula métricas agregadas de viagem/fila; não produz contagens e velocidades por detector, segmento e janela alinhadas ao TIRTL. No ambiente desta execução não foram encontrados `sumo`, `netconvert`, Docker ou Podman.
+**Status: baseline de tráfego não executada; métricas não calculadas.** O repositório agora contém uma extração OSM datada e uma rede West Gate convertida por SUMO: [pipeline e manifesto](west-gate-sumo-network.md). O artefato tem SHA-256 `006bd41d53d0a772150b1a672773f5ca2b857344c35c21cb91df2f984e0f79da` e foi reproduzido em dois worktrees com SUMO/netconvert 1.28.0. O smoke real carregou a rede e avançou um segundo **sem rotas ou veículos**; ele não é uma simulação de tráfego nem uma baseline. O build gerou 138 linhas de warnings do netconvert e o smoke registrou 29 avisos, inclusive sobre sinais atuados sem detectores controladores. A rede é derivada do OSM, não um modelo *as-built* verificado.
 
-Mesmo com executáveis instalados, os dados TIRTL são contagens pontuais, não matriz OD, rotas nem demanda de entrada. Construir demanda usando a mesma observação que será avaliada criaria circularidade. Portanto, não há comparação observado-vs-simulado defensável a reportar.
+Mesmo com a rede e executáveis disponíveis, os dados TIRTL são contagens pontuais, não matriz OD, rotas nem demanda de entrada. Construir demanda usando as mesmas observações que serão avaliadas criaria circularidade. Também faltam mapping detector→segmento/faixa elegível e saídas SUMO por detector/segmento/janela. Portanto, não há comparação observado-vs-simulado defensável a reportar.
 
 | Métrica solicitada | Baseline | Calibrado no treino | Held-out |
 |---|---:|---:|---:|
@@ -51,14 +51,14 @@ Antes da próxima tentativa, o protocolo deve registrar em versão imutável: ma
 - **A calibração melhorou? Generalizou?** Não houve calibração ou held-out.
 - **Quais detectores ficaram ruins?** Nenhum foi avaliado; 504 e 505 permanecem unresolved.
 - **Quais hipóteses estão sem sustentação?** CRS/precisão das coordenadas, detector→via/faixa, significado dos headings, demanda/OD de fronteira e compatibilidade da velocidade agregada.
-- **Módulo empiricamente validado como gêmeo digital?** Não. Há fonte observada documentada e adapter; faltam mapping confiável, rede SUMO real, comparação, calibração e validação independente.
+- **Módulo empiricamente validado como gêmeo digital?** Não. Há fonte observada documentada, adapter e uma rede SUMO candidata derivada do OSM; faltam mapping confiável, confirmação da rede contra a geometria operacional do corredor, demanda independente, comparação, calibração e validação held-out.
 
 ## 6. Reprodutibilidade e próximos gates
 
 O [documento do piloto](victoria-tirtl-pilot.md) registra checksums dos arquivos locais, sem versionar os dados brutos. A suite PostGIS real está separada em `apps/api/tests/integration/test_postgis_integration.py` e exige `CITY_ENGINE_TEST_DATABASE_URL`; ela não foi executada neste ambiente. A suíte unitária valida apenas a lógica do repositório com pool falso.
 
 1. Obter do DTP CRS/precisão, plano de instalação e definição de heading para 504/505; promover apenas mappings demonstrados.
-2. Construir e versionar rede SUMO de West Gate com acessos e limites de demanda documentados.
+2. Revisar a rede OSM integrada contra evidência independente do corredor e documentar conectividade/limites apropriados à demanda antes de usá-la em experimento.
 3. Definir demanda de fronteira sem reutilizar as observações do detector como verdade-alvo.
 4. Gerar medidas SUMO por detector/segmento em bins de 15 minutos; validar unidades e sentidos.
 5. Só então congelar split e protocolo, executar baseline, calibrar no treino e avaliar uma janela posterior held-out.
