@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field, model_validator
@@ -33,6 +34,43 @@ def canonical_json(payload: Any) -> bytes:
 
 def canonical_hash(payload: Any) -> str:
     return hashlib.sha256(canonical_json(payload)).hexdigest()
+
+
+def allocate_housing_stock(
+    new_total_units: int,
+    previous_units_by_district: Mapping[str, int],
+) -> dict[str, int]:
+    """Distribute an aggregate synthetic stock by prior district shares.
+
+    This is an accounting allocation only. It preserves the previous stock's
+    district proportions using largest remainders and lexicographic district ID
+    tie-breaking; it does not predict where construction or retirement occurs.
+    """
+    if type(new_total_units) is not int or new_total_units < 0:
+        raise ValueError("new_total_units deve ser um inteiro não negativo")
+    if not previous_units_by_district:
+        raise ValueError("estoque anterior deve identificar ao menos um distrito")
+    if any(not isinstance(district_id, str) or not district_id for district_id in previous_units_by_district):
+        raise ValueError("IDs distritais devem ser strings não vazias")
+    if any(type(units) is not int or units < 0 for units in previous_units_by_district.values()):
+        raise ValueError("estoque anterior por distrito deve conter inteiros não negativos")
+    if sum(previous_units_by_district.values()) == 0 and new_total_units > 0:
+        raise ValueError("não é possível preservar participações de um estoque anterior zerado")
+    return _largest_remainder_allocation(new_total_units, previous_units_by_district)
+
+
+def _largest_remainder_allocation(total: int, weights: Mapping[str, int]) -> dict[str, int]:
+    denominator = sum(weights.values())
+    if denominator <= 0:
+        if total == 0:
+            return {district_id: 0 for district_id in sorted(weights)}
+        raise ValueError("não é possível ratear total positivo sem pesos positivos")
+    floors = {district_id: total * weight // denominator for district_id, weight in weights.items()}
+    remainder = total - sum(floors.values())
+    order = sorted(weights, key=lambda district_id: (-(total * weights[district_id] % denominator), district_id))
+    for district_id in order[:remainder]:
+        floors[district_id] += 1
+    return {district_id: floors[district_id] for district_id in sorted(floors)}
 
 
 class CityState(StrictModel):
@@ -232,15 +270,7 @@ class StateFactory:
 
     @staticmethod
     def _allocate(total: int, weights: dict[str, int]) -> dict[str, int]:
-        denominator = sum(weights.values())
-        if denominator <= 0:
-            raise ValueError("não é possível ratear estoque sem população urbana positiva")
-        floors = {key: total * weight // denominator for key, weight in weights.items()}
-        remainder = total - sum(floors.values())
-        order = sorted(weights, key=lambda key: (-(total * weights[key] % denominator), key))
-        for key in order[:remainder]:
-            floors[key] += 1
-        return floors
+        return _largest_remainder_allocation(total, weights)
 
 
 class PopulationState(StrictModel):
