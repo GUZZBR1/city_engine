@@ -28,21 +28,25 @@ O ZIP foi percorrido integralmente para os sites 504 e 505, agregando somente os
 
 ## Site e mapeamento espacial
 
-O CSV oficial identifica 504 como inbound (EB), coordenadas `-37.830900, 144.900501`, e 505 como outbound (WB), coordenadas `-37.830815, 144.900329`. No mês auditado, o 505 apresenta nove observações `E` além das `W`, e o 504 também apresentou um `W` na amostra independente de 12 de outubro. A direção reportada deve ser preservada; usar o heading como filtro exige política explícita e rastreável.
+O CSV oficial identifica 504 como inbound (EB), coordenadas `-37.830900, 144.900501`, e 505 como outbound (WB), coordenadas `-37.830815, 144.900329`. O dicionário oficial tem somente os campos `site`, `site_description`, `latitude` e `longitude`; não define CRS/datum, método de levantamento, precisão, deslocamento entre coordenada e sensor, pista ou faixa. A página oficial do Surveyor-General descreve GDA2020 como datum oficial e MGA2020 como projeção oficial na Austrália, mas também mantém GDA94; essa orientação nacional/estadual não permite inferir qual referência o DTP usou neste CSV. [Dicionário oficial TIRTL Sites](https://opendata.transport.vic.gov.au/dataset/tirtl-traffic-counts/resource/1f685833-24fd-4eb0-af11-2e7cfc94da74), [orientação oficial de datum de Victoria](https://www.land.vic.gov.au/surveying/geodesy/geocentric-datum-of-australia).
 
-Uma consulta OSM retornou as vias unidirecionais `West Gate Freeway/M1`, ambas tagged como bridge de cinco faixas: [way 197882461](https://www.openstreetmap.org/way/197882461) e [way 389828674](https://www.openstreetmap.org/way/389828674). A tabela TIRTL não declara CRS; as distâncias abaixo são **inferência exploratória**, calculada interpretando os campos de coordenadas do TIRTL como latitude/longitude geográfica compatível com o OSM. Não use essas distâncias como transformação ou prova de correspondência:
+O material técnico do TIRTL explica que a direção depende da ordem dos eventos dos feixes e de a orientação/configuração da instalação estar corretamente cadastrada; a identificação de faixa também é aprendida para a instalação. Isso não documenta a convenção de `W`/`E` exportada pelo DTP nem a orientação das instalações 504/505. Um estudo da Georgia DOT avaliou TIRTL em um trecho diferente da I-475, portanto seus achados sobre direção/faixa/precisão não identificam os sensores de West Gate. [Documento técnico de funcionamento TIRTL](https://ihmcl.co.in/wp-content/uploads/2018/07/ATCC-Using-TIRTL-Technology-1.pdf), [estudo de campo Georgia DOT](https://dlg.usg.edu/record/dlg_ggpd_s-ga-bt700-pr4-bm1-b2020-bd4-belec-p-btext). No mês auditado, o 505 apresenta nove observações `E` além das `W`, e o 504 apresentou um `W` na amostra independente de 12 de outubro. Preserve separadamente o rótulo e headings; não há convenção local comprovada para converter heading em direção viária.
+
+Uma consulta OSM retornou as vias unidirecionais `West Gate Freeway/M1`, ambas tagged como bridge de cinco faixas: [way 197882461](https://www.openstreetmap.org/way/197882461) e [way 389828674](https://www.openstreetmap.org/way/389828674). A tabela TIRTL não declara CRS. As distâncias abaixo são **estimativas exploratórias herdadas**, calculadas interpretando os campos como latitude/longitude geográfica e projetando localmente para ponto-polilinha. O registro anterior não preservou parâmetros de projeção/software; o extract OSM com checksum não está no checkout para recomputação. Não foram verificadas independentemente e não provam correspondência:
 
 | Site | Distância a way 197882461 | Distância a way 389828674 | Avaliação |
 |---|---:|---:|---|
-| 504 EB | ~9,3 m | ~8,0 m | Ambíguo por proximidade; a direção favorece 197882461, mas não confirma instalação. |
-| 505 WB | ~10,8 m | ~6,5 m | O rótulo WB, heading W e proximidade favorecem 389828674; ainda é associação provisória. |
+| 504 EB | 9,28 m | 8,01 m | `unresolved`; a direção declarada favorece 197882461, mas proximidade ambígua e instalação não confirmada. Não elegível para validação primária. |
+| 505 WB | 10,77 m | 6,52 m | Candidato `medium_confidence` apenas; rótulo, maioria heading W e estimativa antiga favorecem 389828674, mas instalação/direção/localização permanecem incertas. Não elegível para validação primária. |
 
-**Não há evidência pública consultada que identifique faixa, ponto físico de montagem ou tolerância da coordenada.** Portanto:
+Os ways 197882461 e 389828674 são geometria OSM observada em 2026-10-27, não levantamento as-built da instalação nem geometria viária oficial. Suas tags one-way/lanes não demonstram que o plano óptico do sensor cruza aquele way nem qual das cinco faixas é coberta. O checksum do extract OSM é `56c0496f8dfd62038986c42e99370ece29a13a8f488dbdae8071aba5ceddf1f3`; o checksum do CSV DTP é `d588483a42115c3c25aa3d3dd66e6ab05457cde44993156f950c2d1ad254ddb7`. A proveniência completa está no [registro de mapping versionado](victoria-tirtl-mapping-register.json).
+
+**A auditoria não encontrou evidência pública autoritativa que identifique CRS/datum ou acurácia destas coordenadas, faixa, ponto físico de montagem, deslocamento da coordenada ao sensor, ou significado/orientação dos headings exportados.** Os nomes dos sites indicam direção nominal EB/WB e a literatura descreve mecanismos gerais do produto; nenhum registra a instalação local. Portanto:
 
 - Observações mantêm latitude/longitude de origem, `location_id=tirtl-site:<id>` e CRS não especificado; a camada PostGIS não cria geometria EPSG:4326 sem CRS confirmado.
 - O adapter não popula `road_segment_id`, `intersection_id`, faixa ou confiança numérica.
 - OSM Way não é tratado como edge SUMO. A conversão OSM→SUMO e o vínculo detector→edge precisam ser revisados contra um artefato de rede versionado.
-- O site 505 é o piloto mais plausível para seguir investigação, não uma correspondência confirmada. O 504 permanece ambíguo.
+- O site 505 é um candidato para exploração segundo a confiança média herdada, não uma correspondência confirmada; não é elegível para validação primária. O site 504 permanece `unresolved`. Ambos carecem de atribuição de via e faixa.
 
 ## Semântica e qualidade dos dados
 
