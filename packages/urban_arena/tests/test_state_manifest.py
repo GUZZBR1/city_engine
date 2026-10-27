@@ -42,16 +42,38 @@ def test_state_factory_materializes_evolutive_state_without_changing_snapshot() 
     assert state.round_index == 0
     assert state.snapshot_hash == snapshot.hash
     assert state.parent_city_state_hash is None
-    assert state.population == {district["id"]: district["residents"] for district in snapshot.districts}
-    assert state.employment == {district["id"]: district["jobs"] for district in snapshot.districts}
-    assert state.population["entorno_rural"] == 8467
-    assert state.housing["occupied_households_reference_total"] == 24104
-    assert state.housing["occupied_households_urban"] == 21069
-    assert state.housing["total_units"] == 22178
-    assert sum(state.housing["units_by_district"].values()) == state.housing["total_units"]
-    assert "entorno_rural" not in state.housing["units_by_district"]
+    assert state.population.residents_by_district == {district["id"]: district["residents"] for district in snapshot.districts}
+    assert state.population.total_residents == 67250
+    assert state.population.urban_residents == 58783
+    assert state.population.rural_catchment_residents == 8467
+    assert state.employment.jobs_by_district == {district["id"]: district["jobs"] for district in snapshot.districts}
+    assert state.employment.total_jobs == 24000
+    assert state.housing.occupied_households_reference_total == 24104
+    assert state.housing.occupied_households_urban == 21069
+    assert state.housing.total_units == 22178
+    assert sum(state.housing.units_by_district.values()) == state.housing.total_units
+    assert "entorno_rural" not in state.housing.units_by_district
+    assert state.services.school.demand_by_district["centro"] == pytest.approx(8817 * 0.18)
+    assert state.services.school.capacity_by_district["centro"] == pytest.approx(8817 * 0.16)
+    assert state.services.primary_health.demand_by_district["centro"] == pytest.approx(8817 * 2.4)
+    assert state.services.primary_health.capacity_by_district["centro"] == pytest.approx(8817 * 2.0)
+    assert state.environment.public_green_area_m2_by_district["centro"] == pytest.approx(8817 * 2.0)
+    assert state.budget.credits_per_round == 100
+    assert state.budget.fixed_operations + state.budget.reserve + state.budget.discretionary_budget == 100
     assert state.city_state_hash == canonical_hash(state.payload())
     assert snapshot.model_dump(mode="json") == snapshot_before
+
+
+def test_city_state_reconciles_population_groups_against_housing_district_keys() -> None:
+    config, snapshot = _inputs()
+    state = StateFactory.from_snapshot(snapshot, manifest=_manifest(config, snapshot), instance_id="city-1")
+    raw = state.model_dump(mode="python")
+    # Preserve total population while shifting one resident from urban to catchment.
+    raw["population"]["residents_by_district"]["centro"] -= 1
+    raw["population"]["residents_by_district"]["entorno_rural"] += 1
+
+    with pytest.raises(ValidationError, match="urban_residents|rural_catchment_residents"):
+        CityState.model_validate(raw)
 
 
 def test_state_factory_copies_and_candidates_do_not_share_nested_collections() -> None:
@@ -66,20 +88,20 @@ def test_state_factory_copies_and_candidates_do_not_share_nested_collections() -
     assert len(copies) == 5
     assert {state.city_state_hash for state in copies} == {initial_hash}
 
-    copies[0].housing["units_by_district"]["centro"] = -1
-    copies[0].housing["test_nested"] = {"tags": ["changed"]}
-    assert copies[1].housing["units_by_district"]["centro"] >= 0
-    assert "test_nested" not in copies[1].housing
+    copies[0].housing.units_by_district["centro"] = -1
+    copies[0].services.school.demand_by_district["centro"] = -1
+    assert copies[1].housing.units_by_district["centro"] >= 0
+    assert copies[1].services.school.demand_by_district["centro"] >= 0
     assert copies[0].city_state_hash != copies[1].city_state_hash
 
     parent = copies[1]
     candidate = StateFactory.candidate(parent, round_index=1)
-    candidate.environment["metadata"] = {"tags": ["candidate"]}
-    candidate.housing["units_by_district"]["centro"] += 1
+    candidate.environment.public_green_area_m2_by_district["centro"] += 1
+    candidate.services.primary_health.capacity_by_district["centro"] += 1
     assert candidate.parent_city_state_hash == parent.city_state_hash
     assert candidate.round_index == 1
-    assert "metadata" not in parent.environment
-    assert candidate.housing["units_by_district"]["centro"] != parent.housing["units_by_district"]["centro"]
+    assert candidate.environment.public_green_area_m2_by_district["centro"] != parent.environment.public_green_area_m2_by_district["centro"]
+    assert candidate.services.primary_health.capacity_by_district["centro"] != parent.services.primary_health.capacity_by_district["centro"]
     assert candidate.city_state_hash != parent.city_state_hash
 
 
@@ -99,7 +121,7 @@ def test_state_hash_tracks_content_but_not_experiment_instance_or_round_metadata
 
     assert first.city_state_hash == second.city_state_hash == later.city_state_hash
     changed = copy.deepcopy(first.model_dump(mode="python"))
-    changed["population"]["centro"] += 1
+    changed["environment"]["public_green_area_m2_by_district"]["centro"] += 1
     changed_state = CityState.model_validate(changed)
     assert changed_state.city_state_hash != first.city_state_hash
 
@@ -165,6 +187,16 @@ def test_manifest_hash_is_deterministic_and_sensitive_to_materialized_content() 
     assert ExperimentManifest.model_validate(changed).manifest_hash != left.manifest_hash
 
 
+@pytest.mark.parametrize("invalid_rate", [float("nan"), float("inf"), float("-inf")])
+def test_manifest_rejects_non_finite_parameters_during_validation(invalid_rate: float) -> None:
+    config, snapshot = _inputs()
+    raw = _manifest(config, snapshot).model_dump(mode="python")
+    raw["parameters"]["demography"]["net_migration_rate"] = invalid_rate
+
+    with pytest.raises(ValidationError, match="finito"):
+        ExperimentManifest.model_validate(raw)
+
+
 def test_manifest_rejects_horizon_beyond_contract_and_missing_materialization() -> None:
     config, snapshot = _inputs()
     with pytest.raises(ValidationError):
@@ -188,8 +220,8 @@ def test_state_factory_uses_housing_parameters_from_manifest() -> None:
 
     state = StateFactory.from_snapshot(snapshot, manifest=custom_manifest, instance_id="city-1")
 
-    assert state.housing["total_units"] == 23000
-    assert sum(state.housing["units_by_district"].values()) == 23000
+    assert state.housing.total_units == 23000
+    assert sum(state.housing.units_by_district.values()) == 23000
 
 
 def test_state_factory_uses_manifest_household_size_and_vacancy_when_deriving_units() -> None:
@@ -202,9 +234,9 @@ def test_state_factory_uses_manifest_household_size_and_vacancy_when_deriving_un
     state = StateFactory.from_snapshot(snapshot, manifest=manifest, instance_id="city-1")
 
     expected_occupied = math.floor(snapshot.population.urban / 3.0 + 0.5)
-    assert state.housing["occupied_households_urban"] == expected_occupied
-    assert state.housing["vacancy_rate_target"] == 0.10
-    assert state.housing["total_units"] == math.ceil(expected_occupied / 0.90)
+    assert state.housing.occupied_households_urban == expected_occupied
+    assert state.housing.vacancy_rate_target == 0.10
+    assert state.housing.total_units == math.ceil(expected_occupied / 0.90)
 
 
 def test_state_factory_rejects_manifest_for_different_snapshot() -> None:
@@ -312,6 +344,28 @@ def test_transition_result_rejects_mismatched_candidate_hash() -> None:
             parent_city_state_hash=parent.city_state_hash,
             city_state_hash="0" * 64,
             domain_transition="applied",
+            delta=CityStateDelta(parent_city_state_hash=parent.city_state_hash),
+            candidate_state=candidate,
+        )
+
+
+def test_transition_result_rejects_candidate_with_different_parent_hash() -> None:
+    config, snapshot = _inputs()
+    manifest = _manifest(config, snapshot)
+    parent = StateFactory.from_snapshot(snapshot, manifest=manifest, instance_id="city-1")
+    candidate_data = StateFactory.candidate(parent, round_index=1).model_dump(mode="python")
+    candidate_data["parent_city_state_hash"] = "f" * 64
+    candidate = CityState.model_validate(candidate_data)
+
+    with pytest.raises(ValidationError, match="estado pai"):
+        StateTransitionResult(
+            experiment_id=manifest.experiment_id,
+            instance_id="city-1",
+            round_index=1,
+            manifest_hash=manifest.manifest_hash,
+            parent_city_state_hash=parent.city_state_hash,
+            city_state_hash=candidate.city_state_hash,
+            domain_transition="not_run",
             delta=CityStateDelta(parent_city_state_hash=parent.city_state_hash),
             candidate_state=candidate,
         )
