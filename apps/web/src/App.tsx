@@ -194,7 +194,7 @@ function ScenarioComparisonPanel() {
       <div><p className="eyebrow">EXPERIMENTO PAREADO · MESMA SEMENTE E DEMANDA</p><h2 id="comparison-title">Base versus temporização semafórica</h2></div>
       <span className="synthetic-pill">AURORA SINTÉTICA</span>
     </div>
-    <p className="simulation-description">Executa a base e uma intervenção declarativa somente em <code>node:02:00</code>: norte-sul 40 s, todos vermelhos 3 s, leste-oeste 20 s, todos vermelhos 3 s. O ciclo permanece em 66 s. Ambas as execuções usam a mesma rede, demanda, semente e escoamento de até 3.600 s. Benchmark sintético, sem validação empírica.</p>
+    <p className="simulation-description">Executa a base e uma intervenção declarativa somente em <code>node:02:04</code>: norte-sul 40 s, todos vermelhos 3 s, leste-oeste 20 s, todos vermelhos 3 s. O ciclo permanece em 66 s. Rotas do pico da manhã alcançam este cruzamento. Ambas as execuções usam a mesma rede, demanda, semente e escoamento de até 3.600 s. Benchmark sintético, sem validação empírica.</p>
     <div className="simulation-controls">
       <label htmlFor="comparison-window">Janela de demanda</label>
       <select id="comparison-window" value={windowId} disabled={sending || Boolean(active)} onChange={(event) => setWindowId(event.target.value)}>
@@ -216,6 +216,7 @@ function ScenarioComparisonPanel() {
         <div><dt>Escoamento</dt><dd>{comparison.common_parameters.drain_limit_seconds} s</dd></div>
         <div><dt>Demanda pareada</dt><dd>{comparison.common_parameters.trips_requested} viagens · {comparison.common_parameters.demand_hash.slice(0, 12)}</dd></div>
       </dl>
+      {comparison.route_exposure && <p className="simulation-live">Exposição das rotas: {comparison.route_exposure === 'exposed' ? 'confirmada — ao menos uma rota válida alcança o cruzamento' : comparison.route_exposure === 'not_exposed' ? 'nenhuma rota válida alcança o cruzamento' : 'não verificável — arquivo de rotas ausente, inválido ou incompleto'}.</p>}
       {comparison.status === 'failed' && <p role="alert" className="simulation-error">{comparison.error?.scenario ? `Falha no cenário ${comparison.error.scenario === 'base' ? 'base' : 'de intervenção'}: ` : ''}{comparison.error?.message || 'Uma das simulações falhou; a comparação não publicou métricas parciais.'}</p>}
       {comparison.status === 'succeeded' && comparison.base_metrics && comparison.intervention_metrics && comparison.deltas && <>
         <p className="table-note">Delta = intervenção − base. Valores nulos permanecem indisponíveis.</p>

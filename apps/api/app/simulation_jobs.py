@@ -6,6 +6,7 @@ import hashlib
 import json
 import xml.etree.ElementTree as ET
 from threading import RLock
+from typing import Literal
 from uuid import uuid4
 
 from simulation import (
@@ -47,6 +48,8 @@ _jobs: dict[str, SimulationJob] = {}
 _comparisons: dict[str, SimulationComparison] = {}
 _comparison_inputs: dict[str, SimulationInput] = {}
 _jobs_lock = RLock()
+
+RouteExposure = Literal["exposed", "not_exposed", "unknown"]
 
 
 def create_job(request: SimulationRequest) -> SimulationJob:
@@ -155,12 +158,12 @@ def run_comparison(comparison_id: str) -> None:
         _assert_paired_results(base_result, intervention_result, current.common_parameters)
         intervention_warnings = list(intervention_result.warnings)
         route_exposure = _has_route_exposure(inputs, current.intervention, base_result)
-        if route_exposure is False:
+        if route_exposure == "not_exposed":
             intervention_warnings.append(
-                f"Nenhuma rota solicitada percorre arestas incidentes a '{current.intervention.node_id}'; "
+                f"Nenhuma rota solicitada atravessa '{current.intervention.node_id}'; "
                 "os deltas não medem efeito dessa intervenção sobre o tráfego nesta janela."
             )
-        elif route_exposure is None:
+        elif route_exposure == "unknown":
             intervention_warnings.append(
                 "Não foi possível verificar se as rotas solicitadas atravessam a intervenção; "
                 "os deltas não podem ser interpretados como efeito confirmado sobre o tráfego."
@@ -169,6 +172,7 @@ def run_comparison(comparison_id: str) -> None:
             "status": "succeeded",
             "base_result": _result_identity(base_result),
             "intervention_result": _result_identity(intervention_result),
+            "route_exposure": route_exposure,
             "base_metrics": _api_metrics(base_result),
             "intervention_metrics": _api_metrics(intervention_result),
             "deltas": _metric_deltas(base_result.metrics, intervention_result.metrics),
@@ -235,24 +239,47 @@ def _has_route_exposure(
     inputs: SimulationInput,
     intervention: SignalTimingIntervention,
     result: SimulationResult,
-) -> bool | None:
-    incident_edges = {
-        sumo_identifier(edge.id)
-        for edge in inputs.edges
-        if edge.from_node == intervention.node_id or edge.to_node == intervention.node_id
-    }
+) -> RouteExposure:
+    if intervention.node_id not in {node.id for node in inputs.nodes}:
+        return "unknown"
     try:
         routes = ET.parse(result.artifacts.routes_file).getroot()
     except (OSError, ET.ParseError, TypeError, ValueError):
-        return None
+        return "unknown"
+    if routes.tag != "routes":
+        return "unknown"
+
+    trips_by_id = {trip.id: trip for trip in inputs.trips}
+    vehicles = routes.findall("vehicle")
+    if len(vehicles) != len(trips_by_id):
+        return "unknown"
+    encoded_edges = {sumo_identifier(edge.id): edge for edge in inputs.edges}
+    verified_trip_ids: set[str] = set()
     exposure = False
-    for vehicle in routes.findall("vehicle"):
-        route = vehicle.find("route")
-        if route is None or route.get("edges") is None:
-            return None
-        if incident_edges.intersection(route.get("edges", "").split()):
+    for vehicle in vehicles:
+        vehicle_id = vehicle.get("id")
+        trip = trips_by_id.get(vehicle_id or "")
+        route_elements = vehicle.findall("route")
+        if trip is None or vehicle_id in verified_trip_ids or len(route_elements) != 1:
+            return "unknown"
+        route_tokens = (route_elements[0].get("edges") or "").split()
+        route_edges = [encoded_edges.get(token) for token in route_tokens]
+        if not route_tokens or any(edge is None for edge in route_edges):
+            return "unknown"
+        concrete_edges = [edge for edge in route_edges if edge is not None]
+        if concrete_edges[0].id != trip.from_edge or concrete_edges[-1].id != trip.to_edge:
+            return "unknown"
+        if any(left.to_node != right.from_node for left, right in zip(concrete_edges, concrete_edges[1:])):
+            return "unknown"
+        verified_trip_ids.add(vehicle_id)
+        if any(
+            incoming.to_node == intervention.node_id and outgoing.from_node == intervention.node_id
+            for incoming, outgoing in zip(concrete_edges, concrete_edges[1:])
+        ):
             exposure = True
-    return exposure
+    if verified_trip_ids != set(trips_by_id):
+        return "unknown"
+    return "exposed" if exposure else "not_exposed"
 
 
 def _metric_deltas(base: SimulationMetrics, intervention: SimulationMetrics) -> SimulationMetricDeltas:

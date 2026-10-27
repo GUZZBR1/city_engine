@@ -64,6 +64,7 @@ export interface ComparisonDeltas {
 }
 
 export type ComparisonStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+export type RouteExposure = 'exposed' | 'not_exposed' | 'unknown';
 export interface SimulationComparison {
   comparison_id: string;
   status: ComparisonStatus;
@@ -78,6 +79,7 @@ export interface SimulationComparison {
     demand_hash: string;
   };
   intervention: { node_id: string; phases: { movement: string; duration_seconds: number }[] };
+  route_exposure: RouteExposure | null;
   base_result: { simulation_id: string; engine: string; engine_version: string } | null;
   intervention_result: { simulation_id: string; engine: string; engine_version: string } | null;
   base_metrics: SimulationMetrics | null;
@@ -148,6 +150,7 @@ function parseComparison(value: unknown): SimulationComparison {
   const statuses: ComparisonStatus[] = ['queued', 'running', 'succeeded', 'failed'];
   if (typeof comparison.comparison_id !== 'string' || !statuses.includes(comparison.status as ComparisonStatus) ||
       !isRecord(comparison.common_parameters) || !isRecord(comparison.intervention) ||
+      ![null, 'exposed', 'not_exposed', 'unknown'].includes(comparison.route_exposure as string | null) ||
       !Array.isArray(comparison.base_warnings) || !Array.isArray(comparison.intervention_warnings)) {
     throw new Error('Resposta inválida da API: comparação incompleta.');
   }
@@ -206,7 +209,7 @@ export async function startComparison(windowId: string): Promise<SimulationCompa
       seed: 42,
       drain_limit_seconds: 3600,
       intervention: {
-        node_id: 'node:02:00',
+        node_id: 'node:02:04',
         phases: [
           { movement: 'north_south', duration_seconds: 40 },
           { movement: 'all_red', duration_seconds: 3 },

@@ -1,6 +1,6 @@
 # MVP 1 — Prompts e comandos para quatro chats
 
-Este documento divide a próxima etapa em quatro frentes com ownership separado. O objetivo é executar uma simulação-base reproduzível de Aurora no SUMO e apresentar seus resultados. **Agentes de IA, otimização e intervenções ficam fora deste MVP.**
+Este documento divide a próxima etapa em quatro frentes com ownership separado. O objetivo é executar uma simulação-base reproduzível de Aurora no SUMO e apresentar seus resultados. **Agentes de IA e otimização ficam fora deste MVP; há uma comparação demonstrativa fixa de temporização descrita no contrato da API.**
 
 ## Como usar
 
@@ -143,7 +143,7 @@ Resposta `202` do `POST` e resposta `200` do `GET`:
 
 Os estados permitidos são `queued`, `running`, `succeeded`, `failed` e `cancelled`. Em sucesso, `metrics` contém `trips_requested`, `trips_completed`, `trips_not_completed`, `mean_travel_time_seconds`, `mean_speed_kmh` e `mean_queue_length_meters`; os totais de viagens devem reconciliar (`trips_requested = trips_completed + trips_not_completed`). Médias podem ser `null` quando indisponíveis. A fila é comprimento em metros, não quantidade de veículos. As solicitações devem retornar `drain_limit_seconds` (padrão de 3600 s); as partidas ficam restritas à janela de demanda, e o escoamento pode ultrapassá-la. As métricas de duração e velocidade cobrem viagens concluídas até o fim do escoamento, enquanto a fila média cobre somente a janela de demanda. Em falha ou cancelamento, mantenha `metrics: null` e retorne um erro estável; não invente resultados parciais. O `seed` deve ser devolvido inclusive quando foi escolhido pelo servidor.
 
-Uma comparação carrega a entrada da cidade uma vez e deriva dela ambos os cenários. A demanda expandida, snapshot, janela, semente e `drain_limit_seconds` devem ser idênticos. O cenário demonstrativo altera somente as durações das quatro fases de `node:02:00` para `40, 3, 20, 3` s, preservando movimentos, ordem e ciclo de 66 s. Rejeite nó/controlador inexistente, quantidade ou ordem incorreta de fases, durações não positivas e ciclo alterado. Não altere YAML. Se qualquer execução falhar, a comparação é `failed` e não publica métricas nem deltas parciais.
+Uma comparação carrega a entrada da cidade uma vez e deriva dela ambos os cenários. A demanda expandida, snapshot, janela, semente e `drain_limit_seconds` devem ser idênticos. O cenário demonstrativo altera somente as durações das quatro fases de `node:02:04` para `40, 3, 20, 3` s, preservando movimentos, ordem e ciclo de 66 s. `route_exposure` assume `exposed`, `not_exposed` ou `unknown`: confirme os dois primeiros estados somente com arquivo de rotas completo e consistente; arquivo ausente, inválido ou incompleto é `unknown`. Não deduza ausência de exposição de artefato incompleto. Rejeite nó/controlador inexistente, quantidade ou ordem incorreta de fases, durações não positivas e ciclo alterado. Não altere YAML. Se qualquer execução falhar, a comparação é `failed` e não publica métricas nem deltas parciais.
 
 Requisitos:
 - Não executar a simulação dentro do ciclo síncrono da requisição HTTP.

@@ -163,6 +163,7 @@ class SimulationComparison(BaseModel):
     status: Literal["queued", "running", "succeeded", "failed"]
     common_parameters: ComparisonCommonParameters
     intervention: SignalTimingIntervention
+    route_exposure: Literal["exposed", "not_exposed", "unknown"] | None = None
     base_result: ComparisonResultIdentity | None = None
     intervention_result: ComparisonResultIdentity | None = None
     base_metrics: SimulationMetrics | None = None

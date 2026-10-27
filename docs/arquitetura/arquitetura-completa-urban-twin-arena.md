@@ -228,12 +228,15 @@ Cada execução cria cópias independentes de `aurora-base-v1`, uma por agente, 
 No MVP local, uma comparação controlada de temporização pareia a base e uma
 intervenção declarativa com uma única entrada carregada: mesmo hash de
 snapshot, janela, viagens expandidas, semente e limite de escoamento. A
-intervenção demonstrativa altera somente as durações de `node:02:00` para
+intervenção demonstrativa altera somente as durações de `node:02:04` para
 `40, 3, 20, 3` s, preservando o ciclo base de 66 s e o restante do estado. O
 resultado publica as métricas originais dos dois motores e deltas intervenção
 menos base; falha em qualquer run invalida a comparação e não publica métricas
 parciais. Isso demonstra execução pareada de dados sintéticos, não validação
-empírica nem score agregado.
+empírica nem score agregado. A janela de pico da manhã inclui rotas que passam
+por `node:02:04`; `route_exposure` só é `not_exposed` quando o arquivo completo
+e consistente confirma ausência de uma transição pelo nó. Arquivo ausente ou
+inválido deixa a exposição como `unknown`.
 
 Por benchmark, congelar snapshot, dados, regras, cenários, parâmetros, agentes, versão do SUMO, ambiente, sementes e métricas. Comparar com cenários e sementes pareados em várias replicações. Persistir a semente por subsistema e as viagens exógenas, não apenas uma semente global.
 

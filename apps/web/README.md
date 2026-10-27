@@ -30,13 +30,16 @@ veículos que não terminarem até o limite aparecem como não concluídos. O
 comprimento médio de fila cobre somente a janela de demanda; médias nulas
 aparecem como indisponíveis. A API local mantém jobs em memória e não oferece
 cancelamento nesta etapa. O painel também permite executar uma comparação
-pareada entre a base e a temporização declarada para `node:02:00`. Ele exibe
+pareada entre a base e a temporização declarada para `node:02:04`, alcançada
+por rotas da demanda do pico da manhã. Ele exibe
 base, intervenção e deltas com unidades, além do snapshot, janela, semente,
 escoamento, identidade das execuções e avisos por cenário. A intervenção
 demonstrativa usa `[40, 3, 20, 3]` s, preservando o ciclo base de 66 s; é um
-benchmark sintético sem validação empírica. Avisos identificam quando nenhuma
-rota solicitada passa pelo cruzamento alterado, condição em que deltas sem
-mudança não demonstram efeito de tráfego.
+benchmark sintético sem validação empírica. A interface mostra o estado de
+exposição: confirmada por rota válida que atravessa o nó, nenhuma rota válida
+atravessa o nó, ou não verificável porque o arquivo de rotas está ausente,
+inválido ou incompleto. Deltas iguais a zero são exibidos fielmente e não são
+tratados como sucesso nem fracasso do cenário.
 
 ## Coordenadas e proveniência
 

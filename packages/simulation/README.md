@@ -30,7 +30,7 @@ parameters remain untouched. For Aurora's demonstration intervention:
 from simulation import SignalTimingIntervention, SignalTimingPhase, run_simulation
 
 intervention = SignalTimingIntervention(
-    node_id="node:02:00",
+    node_id="node:02:04",
     phases=(
         SignalTimingPhase(movement="north_south", duration_seconds=40),
         SignalTimingPhase(movement="all_red", duration_seconds=3),

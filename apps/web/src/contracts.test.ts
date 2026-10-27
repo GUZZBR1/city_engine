@@ -74,10 +74,10 @@ describe('API integration', () => {
       comparison_id: 'comparison-1', status: 'succeeded',
       common_parameters: { city_id: 'aurora-base-v1', snapshot_id: 'aurora-base-v1:abc', snapshot_hash: 'abc',
         window_id: 'weekday_am_peak', seed: 42, drain_limit_seconds: 3600, trips_requested: 930, demand_hash: 'demand-hash' },
-      intervention: { node_id: 'node:02:00', phases: [
+      intervention: { node_id: 'node:02:04', phases: [
         { movement: 'north_south', duration_seconds: 40 }, { movement: 'all_red', duration_seconds: 3 },
         { movement: 'east_west', duration_seconds: 20 }, { movement: 'all_red', duration_seconds: 3 },
-      ] },
+      ] }, route_exposure: 'exposed',
       base_result: { simulation_id: 'base-1', engine: 'sumo', engine_version: '1.28.0' },
       intervention_result: { simulation_id: 'scenario-1', engine: 'sumo', engine_version: '1.28.0' },
       base_metrics: { trips_requested: 930, trips_completed: 920, trips_not_completed: 10, mean_travel_time_seconds: 60, mean_speed_kmh: 30, mean_queue_length_meters: 8 },
@@ -87,7 +87,7 @@ describe('API integration', () => {
     };
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body));
-      expect(body).toMatchObject({ seed: 42, drain_limit_seconds: 3600, intervention: { node_id: 'node:02:00' } });
+      expect(body).toMatchObject({ seed: 42, drain_limit_seconds: 3600, intervention: { node_id: 'node:02:04' } });
       expect(body.intervention.phases.map((phase: { duration_seconds: number }) => phase.duration_seconds)).toEqual([40, 3, 20, 3]);
       return new Response(JSON.stringify({ comparison }), { status: 202, headers: { 'Content-Type': 'application/json' } });
     });
@@ -96,6 +96,7 @@ describe('API integration', () => {
     expect(result.base_metrics?.mean_queue_length_meters).toBe(8);
     expect(result.deltas?.mean_travel_time_seconds).toBe(-2);
     expect(result.intervention_result?.simulation_id).toBe('scenario-1');
+    expect(result.route_exposure).toBe('exposed');
   });
 });
 
