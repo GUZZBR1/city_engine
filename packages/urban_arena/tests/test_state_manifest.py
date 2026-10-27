@@ -64,6 +64,18 @@ def test_state_factory_materializes_evolutive_state_without_changing_snapshot() 
     assert snapshot.model_dump(mode="json") == snapshot_before
 
 
+def test_city_state_reconciles_population_groups_against_housing_district_keys() -> None:
+    config, snapshot = _inputs()
+    state = StateFactory.from_snapshot(snapshot, manifest=_manifest(config, snapshot), instance_id="city-1")
+    raw = state.model_dump(mode="python")
+    # Preserve total population while shifting one resident from urban to catchment.
+    raw["population"]["residents_by_district"]["centro"] -= 1
+    raw["population"]["residents_by_district"]["entorno_rural"] += 1
+
+    with pytest.raises(ValidationError, match="urban_residents|rural_catchment_residents"):
+        CityState.model_validate(raw)
+
+
 def test_state_factory_copies_and_candidates_do_not_share_nested_collections() -> None:
     config, snapshot = _inputs()
     manifest = _manifest(config, snapshot)
@@ -173,6 +185,16 @@ def test_manifest_hash_is_deterministic_and_sensitive_to_materialized_content() 
     changed = left.model_dump(mode="python")
     changed["parameters"]["demography"]["birth_rate"] += 0.001
     assert ExperimentManifest.model_validate(changed).manifest_hash != left.manifest_hash
+
+
+@pytest.mark.parametrize("invalid_rate", [float("nan"), float("inf"), float("-inf")])
+def test_manifest_rejects_non_finite_parameters_during_validation(invalid_rate: float) -> None:
+    config, snapshot = _inputs()
+    raw = _manifest(config, snapshot).model_dump(mode="python")
+    raw["parameters"]["demography"]["net_migration_rate"] = invalid_rate
+
+    with pytest.raises(ValidationError, match="finito"):
+        ExperimentManifest.model_validate(raw)
 
 
 def test_manifest_rejects_horizon_beyond_contract_and_missing_materialization() -> None:
@@ -322,6 +344,28 @@ def test_transition_result_rejects_mismatched_candidate_hash() -> None:
             parent_city_state_hash=parent.city_state_hash,
             city_state_hash="0" * 64,
             domain_transition="applied",
+            delta=CityStateDelta(parent_city_state_hash=parent.city_state_hash),
+            candidate_state=candidate,
+        )
+
+
+def test_transition_result_rejects_candidate_with_different_parent_hash() -> None:
+    config, snapshot = _inputs()
+    manifest = _manifest(config, snapshot)
+    parent = StateFactory.from_snapshot(snapshot, manifest=manifest, instance_id="city-1")
+    candidate_data = StateFactory.candidate(parent, round_index=1).model_dump(mode="python")
+    candidate_data["parent_city_state_hash"] = "f" * 64
+    candidate = CityState.model_validate(candidate_data)
+
+    with pytest.raises(ValidationError, match="estado pai"):
+        StateTransitionResult(
+            experiment_id=manifest.experiment_id,
+            instance_id="city-1",
+            round_index=1,
+            manifest_hash=manifest.manifest_hash,
+            parent_city_state_hash=parent.city_state_hash,
+            city_state_hash=candidate.city_state_hash,
+            domain_transition="not_run",
             delta=CityStateDelta(parent_city_state_hash=parent.city_state_hash),
             candidate_state=candidate,
         )

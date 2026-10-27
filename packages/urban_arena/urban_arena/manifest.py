@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from pydantic import Field, model_validator
@@ -116,6 +117,21 @@ class AuroraSyntheticV1Parameters(StrictModel):
     services: ServiceParameters
     green: GreenParameters
     emissions: EmissionsParameters
+
+    @model_validator(mode="after")
+    def validate_finite_values(self) -> AuroraSyntheticV1Parameters:
+        def visit(value: object, path: str) -> None:
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"parâmetro {path} deve ser finito")
+            if isinstance(value, dict):
+                for key, nested in value.items():
+                    visit(nested, f"{path}.{key}")
+            elif isinstance(value, (list, tuple)):
+                for index, nested in enumerate(value):
+                    visit(nested, f"{path}[{index}]")
+
+        visit(self.model_dump(mode="python"), "parameters")
+        return self
 
 
 def build_aurora_synthetic_v1_manifest(
