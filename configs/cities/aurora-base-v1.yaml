@@ -2,7 +2,7 @@ schema_version: 1
 city:
   id: aurora-base-v1
   name: Aurora
-  description: "Cidade sintética brasileira de referência para a Urban Twin Arena."
+  description: "Rede viária sintética brasileira de referência para a Arena de Tráfego da Urban Twin Arena."
   status: synthetic_benchmark
   country_reference: BR
   census_reference_year: 2022

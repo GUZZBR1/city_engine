@@ -8,9 +8,11 @@
 
 **Piloto empírico futuro:** [ficha de reprodução do trânsito observado](../piloto/ficha-piloto.md)
 
+> **Recorte atual do produto:** arena de tráfego e infraestrutura viária, com cinco empresas em cópias isoladas da mesma rede. Este documento mantém contratos de evolução mais amplos; modelos urbanos fora de tráfego não fazem parte do escopo atual. A aplicação existente ainda é uma bancada sintética de visualização e comparação base/intervenção.
+
 ## 1. Decisão executiva
 
-Construir a primeira versão como um **monólito modular Python**, com uma aplicação **React + TypeScript** e um **worker de simulação isolado**. O sistema terá contratos estáveis entre domínio, modelos científicos, agentes e adaptadores, mas não começará distribuído em vários microsserviços.
+Construir a primeira versão da arena viária como um **monólito modular Python**, com uma aplicação **React + TypeScript** e um **worker de simulação isolado**. O sistema terá contratos estáveis entre rede, estratégias das empresas, modelos de tráfego e adaptadores, mas não começará distribuído em vários microsserviços.
 
 | Responsabilidade | Padrão inicial |
 |---|---|

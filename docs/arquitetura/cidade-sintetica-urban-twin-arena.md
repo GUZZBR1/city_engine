@@ -1,4 +1,4 @@
-# Blueprint — cidade sintética e Urban Twin Arena
+# Blueprint — rede viária sintética e Urban Twin Arena
 
 **Nome provisório da cidade:** Aurora
 
@@ -8,11 +8,11 @@
 
 **Uso autorizado:** desenvolvimento de software, benchmark sintético e comparação experimental dentro das regras documentadas
 
-> Aurora é uma cidade fictícia. Seus parâmetros são controlados para exercitar o sistema e não descrevem uma população, economia ou tráfego real.
+> Aurora é uma rede viária sintética de referência. Seus parâmetros de tráfego são controlados para exercitar o sistema e não descrevem tráfego observado. O recorte atual do produto compara estratégias de empresas de infraestrutura viária.
 
 ## 1. Decisão de arquitetura
 
-Construir Aurora como um laboratório sintético, pequeno e reproduzível, antes de depender de uma cidade piloto real. Ela permite implementar e verificar a cadeia completa:
+Construir Aurora como uma rede viária sintética, pequena e reproduzível, antes de depender de uma área piloto real. Ela permite implementar e verificar a cadeia completa:
 
 **estado inicial → observação → proposta do agente → validação → transição dos modelos → métricas → registro**
 

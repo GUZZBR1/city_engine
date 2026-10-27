@@ -1,6 +1,6 @@
-# Frontend MVP 0 — Urban Twin Arena
+# Frontend MVP 0 — Urban Twin Arena: Arena de Tráfego
 
-Interface React + TypeScript que consulta os metadados e a geometria de Aurora na API e exibe um esquema 2D sem mapa-base. População, empregos, identidade e geometrias vêm exclusivamente dos endpoints; o navegador não gera cidade nem calcula métricas científicas.
+Interface React + TypeScript para a bancada de tráfego: consulta os metadados e a geometria da rede viária sintética Aurora e exibe seu esquema 2D sem mapa-base. Esta etapa visualiza a rede e compara cenários pareados; as cinco empresas competidoras são o próximo estágio do produto, ainda não executado pela aplicação.
 
 ## Executar localmente
 

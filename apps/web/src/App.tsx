@@ -29,14 +29,14 @@ function FeatureTable({ data }: { data: CityData }) {
       <div className="section-heading">
         <div>
           <p className="eyebrow">ALTERNATIVA ACESSÍVEL AO MAPA</p>
-          <h2 id="table-title">Elementos de Aurora</h2>
+          <h2 id="table-title">Elementos da rede viária</h2>
         </div>
         <span className="row-count">{rows.length} elementos da API</span>
       </div>
       <div className="table-scroll" tabIndex={0} aria-label="Tabela de elementos, role para rolagem horizontal">
         <table>
-          <caption>Distritos, vias e cruzamentos retornados pela API de Aurora</caption>
-          <thead><tr><th scope="col">Camada</th><th scope="col">ID</th><th scope="col">Nome</th><th scope="col">Tipo</th><th scope="col">População</th><th scope="col">Empregos</th></tr></thead>
+          <caption>Áreas, vias e cruzamentos retornados pela API de Aurora</caption>
+          <thead><tr><th scope="col">Camada</th><th scope="col">ID</th><th scope="col">Nome</th><th scope="col">Tipo</th><th scope="col">Velocidade</th><th scope="col">Faixas</th><th scope="col">Capacidade</th></tr></thead>
           <tbody>{rows.map(({ layer, feature }, index) => {
             const id = feature.id ?? valueFrom(feature, ['id', 'feature_id']);
             return <tr key={`${layer}-${String(id ?? index)}`}>
@@ -44,13 +44,14 @@ function FeatureTable({ data }: { data: CityData }) {
               <td>{displayValue(id)}</td>
               <td>{displayValue(valueFrom(feature, ['name', 'label', 'display_name']))}</td>
               <td>{displayValue(valueFrom(feature, ['type', 'kind', 'district_type']))}</td>
-              <td>{displayValue(valueFrom(feature, ['population', 'residents', 'population_total']))}</td>
-              <td>{displayValue(valueFrom(feature, ['jobs', 'employment', 'total_jobs']))}</td>
+              <td>{displayValue(valueFrom(feature, ['speed_limit_kmh']))}{valueFrom(feature, ['speed_limit_kmh']) !== undefined ? ' km/h' : ''}</td>
+              <td>{displayValue(valueFrom(feature, ['lanes']))}</td>
+              <td>{displayValue(valueFrom(feature, ['capacity_vehicles_per_hour']))}{valueFrom(feature, ['capacity_vehicles_per_hour']) !== undefined ? ' veíc./h' : ''}</td>
             </tr>;
           })}</tbody>
         </table>
       </div>
-      <p className="table-note">Os valores mostram somente propriedades fornecidas pela API. Traços indicam campos não fornecidos.</p>
+      <p className="table-note">Velocidade, faixas e capacidade são hipóteses sintéticas por trecho, fornecidas pela API; traços indicam campos não aplicáveis ou não fornecidos.</p>
     </section>
   );
 }
@@ -280,15 +281,15 @@ export default function App() {
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></span>
           <span>URBAN TWIN <b>ARENA</b></span>
         </a>
-        <div className="topbar-meta"><span className="live-dot" /> MVP 0 <span className="topbar-divider">/</span> VISUALIZAÇÃO</div>
+        <div className="topbar-meta"><span className="live-dot" /> TRÁFEGO <span className="topbar-divider">/</span> BANCADA MVP 0</div>
       </header>
 
       <div className="content" id="inicio">
         <div className="page-intro">
           <div>
-            <p className="eyebrow">BENCHMARK URBANO · VERSÃO 0.1</p>
-            <h1>Uma cidade. Um ponto de partida.</h1>
-            <p className="intro-copy">Explore o esquema territorial de Aurora, a cidade-base sintética da Urban Twin Arena.</p>
+            <p className="eyebrow">ARENA DE TRÁFEGO · VERSÃO 0.1</p>
+            <h1>Cinco empresas. Uma rede viária.</h1>
+            <p className="intro-copy">Empresas de infraestrutura disputam estratégias para ruas, estradas e rodovias sob a mesma demanda e as mesmas regras.</p>
           </div>
           <div className="synthetic-stamp"><span aria-hidden="true">◇</span> SINTÉTICO</div>
         </div>
@@ -302,7 +303,11 @@ export default function App() {
         </section>}
 
         {state === 'ready' && data && <>
-          <section className="workspace" aria-label="Visão geral de Aurora">
+          <section className="focus-banner" aria-label="Escopo da arena">
+            <strong>Foco atual: tráfego e infraestrutura viária</strong>
+            <p>A bancada já compara cenários de tráfego em condições pareadas. A competição entre cinco empresas é a próxima etapa: cada uma receberá uma cópia independente da rede e um orçamento comum.</p>
+          </section>
+          <section className="workspace" aria-label="Visão geral da rede viária de Aurora">
             <div className="map-column"><MapView cityMap={data.map} visible={visible} />
               <div className="legend-panel" aria-label="Legenda e controles de camadas">
                 <div className="legend-title"><span className="eyebrow">CAMADAS DO MAPA</span><span className="local-tag">LOCAL · m</span></div>
@@ -314,22 +319,22 @@ export default function App() {
               </div>
             </div>
             <aside className="city-panel" aria-labelledby="city-title">
-              <div className="city-panel-top"><p className="eyebrow">CIDADE-BASE</p><span className="synthetic-pill"><span aria-hidden="true">◇</span> SINTÉTICO</span></div>
+              <div className="city-panel-top"><p className="eyebrow">REDE VIÁRIA-BASE</p><span className="synthetic-pill"><span aria-hidden="true">◇</span> SINTÉTICA</span></div>
               <h2 id="city-title">{data.metadata.name}<span className="city-period">.</span></h2>
               <p className="city-id">{data.metadata.city_id}</p>
               <p className="snapshot-hash"><span>HASH DO SNAPSHOT</span><code title={data.metadata.hash}>{data.metadata.hash}</code></p>
               <div className="metric-stack">
-                <div className="metric"><span>População</span><strong>{new Intl.NumberFormat('pt-BR').format(data.metadata.population.total)}</strong><small>residentes</small></div>
-                <div className="metric"><span>Empregos</span><strong>{new Intl.NumberFormat('pt-BR').format(data.metadata.jobs)}</strong><small>postos sintéticos</small></div>
+                <div className="metric"><span>Trechos direcionados</span><strong>{new Intl.NumberFormat('pt-BR').format(data.map.layers.edges.features.length)}</strong><small>arestas viárias</small></div>
+                <div className="metric"><span>Cruzamentos</span><strong>{new Intl.NumberFormat('pt-BR').format(data.map.layers.nodes.features.length)}</strong><small>nós da rede</small></div>
               </div>
-              <div className="provenance-note"><span aria-hidden="true">ⓘ</span><p>Aurora é um esquema sintético local para desenvolvimento e benchmark. Não representa uma cidade real nem possui localização geográfica.</p></div>
+              <div className="provenance-note"><span aria-hidden="true">ⓘ</span><p>Aurora é uma rede viária sintética para desenvolvimento e benchmark. Não representa uma cidade real nem possui localização geográfica.</p></div>
               <dl className="snapshot-details"><div><dt>Snapshot</dt><dd>{data.metadata.snapshot_id}</dd></div><div><dt>Proveniência</dt><dd>{data.metadata.provenance}</dd></div></dl>
             </aside>
           </section>
           <SimulationPanel />
           <ScenarioComparisonPanel />
           <FeatureTable data={data} />
-          <footer className="page-footer"><span>URBAN TWIN ARENA <b>·</b> AURORA SINTÉTICA</span><span>Geometria fornecida pela API · espaço cartesiano local</span></footer>
+          <footer className="page-footer"><span>URBAN TWIN ARENA <b>·</b> FOCO EM TRÁFEGO</span><span>Geometria viária sintética · espaço cartesiano local</span></footer>
         </>}
       </div>
     </main>

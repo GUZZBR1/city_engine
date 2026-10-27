@@ -4,15 +4,26 @@
 
 **Versão:** 0.1
 
-**Visão:** laboratório auditável para comparar estratégias de planejamento urbano em cidades simuladas
+**Visão:** arena auditável para comparar empresas e estratégias de operação e infraestrutura viária
 
 ## 1. Resumo executivo
 
-O Urban Twin Arena será um ambiente de experimentação no qual políticas urbanas são propostas por agentes decisores e avaliadas por modelos computacionais explícitos. Cada experimento parte de uma cidade versionada, aplica ações sujeitas a regras públicas e calcula efeitos em diferentes dimensões urbanas.
+O Urban Twin Arena começa como uma arena de tráfego: cinco empresas de infraestrutura viária competem para operar e melhorar a mesma rede de ruas, estradas e rodovias. Cada empresa recebe uma cópia isolada da rede, as mesmas condições de tráfego e um orçamento equivalente. Suas estratégias são avaliadas por modelos explícitos e regras comuns.
 
 A Arena não deve afirmar que encontrou uma política universalmente superior. Ela deve responder: **sob estes dados, modelos, regras e cenários, quais resultados cada estratégia produziu, com que incerteza e para quais áreas e grupos?**
 
-O primeiro modelo será de mobilidade e começará numa cidade sintética controlada, para desenvolver e verificar o sistema. A ficha existente de reprodução do trânsito observado será a etapa de validação empírica antes de atribuir validade a resultados sobre uma cidade real.
+O primeiro modelo será de tráfego e começará numa rede sintética controlada. A ficha existente de reprodução do trânsito observado será a etapa de validação empírica antes de atribuir validade a resultados sobre uma rede real.
+
+### Recorte de produto atual
+
+- **Participantes:** cinco empresas fictícias de infraestrutura viária, cada uma com estratégia, orçamento e estado próprios.
+- **Território:** uma rede comum que pode conter ruas urbanas, estradas e rodovias; as empresas recebem cópias idênticas no início.
+- **Competição:** as empresas enfrentam a mesma demanda, cenários, sementes e regras. O árbitro aplica ações permitidas e calcula os resultados.
+- **Decisões iniciais:** priorização de manutenção, obras e capacidade viária, operação de cruzamentos e resposta a incidentes, quando esses controles estiverem representados pelo modelo.
+- **Avaliação:** desempenho do tráfego, custo e uso do orçamento, cobertura da rede e efeitos sobre segurança e conservação quando houver modelos e dados para calculá-los. O painel é multidimensional; não existe uma nota universal presumida.
+- **Limite da versão atual:** a bancada já permite visualizar a rede sintética e comparar uma execução-base com uma intervenção semafórica pareada. As cinco empresas e suas decisões ainda são uma etapa futura, não uma função disponível.
+
+O papel das empresas é competir como operadoras e construtoras sob as regras do experimento; elas não substituem governos, não definem leis e não controlam cidades reais. A mecânica de cópias independentes, orçamento comum, cenários pareados, referências e árbitro permanece a mesma.
 
 ## 2. Objetivos e limites
 
@@ -36,7 +47,7 @@ O primeiro modelo será de mobilidade e começará numa cidade sintética contro
 
 | Usuário | Necessidade principal |
 |---|---|
-| Planejador ou engenheiro urbano | Comparar alternativas e entender efeitos esperados antes de recomendar uma intervenção |
+| Operador, concessionária ou engenheiro viário | Comparar estratégias de operação, manutenção e investimento em vias |
 | Pesquisador ou analista | Configurar, auditar e reproduzir experimentos |
 | Gestor público | Entender resultados, tradeoffs, incertezas e impactos distributivos |
 | Administrador do experimento | Definir dados, regras, horizonte, agentes e protocolo de comparação |
@@ -81,17 +92,15 @@ Uma rodada precisa declarar duração simulada, ações permitidas, se as decis�
 | **Registro de experimentos** | Guardar dados, licenças, versões, parâmetros, ações, sementes, resultados e proveniência |
 | **Interface 2D** | Mostrar mapa, evolução temporal, grupos afetados, hipóteses, incertezas e comparações |
 
-### Domínios de modelos
+### Escopo de modelos no recorte de tráfego
 
-- Mobilidade e transporte público.
-- Uso do solo e habitação.
-- População e migração.
-- Economia, emprego, receita, despesas e dívida.
-- Infraestrutura e serviços urbanos.
-- Ambiente e emissões.
-- Acessibilidade, desigualdade e qualidade de vida.
+- Tráfego e mobilidade nas vias.
+- Capacidade, velocidade, filas e conectividade da rede.
+- Condição e manutenção do pavimento, quando representadas.
+- Custos de obras e operação, com unidades e hipóteses explícitas.
+- Segurança viária e impactos ambientais somente após implementação e validação dos modelos correspondentes.
 
-Cada domínio deve ter entradas, saídas, unidades, cobertura, intervalo temporal, versão e limites de validade explícitos. O acoplamento entre domínios também precisa ser validado; validar os módulos isoladamente não prova que seus ciclos de feedback representam a cidade.
+O primeiro recorte não simula a cidade inteira. Cada modelo viário deve declarar entradas, saídas, unidades, cobertura, intervalo temporal, versão e limites de validade. Novos domínios só entram quando houver uma pergunta de produto e validação apropriadas.
 
 ### Escalas temporais
 
@@ -106,15 +115,17 @@ Contrato mínimo de uma ação:
 ```json
 {
   "action_id": "action-001",
-  "type": "transit_service_change",
-  "target": "corridor-12",
+  "type": "road_maintenance",
+  "target": "road-segment-12",
   "parameters": {
-    "frequency_minutes": 8
+    "treatment": "resurface"
   },
-  "budget_request": 120000,
-  "rationale": "Aumentar a oferta no período de pico"
+  "budget_request": 12,
+  "rationale": "Priorizar a recuperação do trecho com maior impacto na rede"
 }
 ```
+
+O exemplo descreve uma ação futura. No MVP atual, a única intervenção demonstrativa implementada é uma alteração declarativa de temporização semafórica.
 
 O validador registra separadamente a ação proposta, os motivos de aceitação ou rejeição, o custo calculado e a ação efetivamente aplicada. Regras rígidas — como limites de orçamento e áreas protegidas — não devem ser compensáveis por uma pontuação alta em outra dimensão.
 
@@ -183,25 +194,25 @@ O SUMO é adequado para mobilidade, mas não substitui modelos de habitação, e
 
 ## 11. Roteiro de evolução
 
-### Etapa 1 — Construir a bancada sintética
+### Etapa 1 — Construir a bancada sintética de tráfego
 
-Criar Aurora como uma cidade fictícia versionada, com rede, demanda e casos de referência conhecidos. Usá-la para verificar o mapa, a execução reprodutível, o contrato de ações e a mecânica da Arena. Resultados desta etapa são sintéticos.
+Criar Aurora como uma rede viária sintética versionada, com demanda e casos de referência conhecidos. Usá-la para verificar o mapa, a execução reprodutível, o contrato de intervenções viárias e a mecânica da Arena. Resultados desta etapa são sintéticos.
 
 ### Etapa 2 — Validar a linha de base de mobilidade
 
 Executar a ficha atual de [reprodução do trânsito observado](../piloto/ficha-piloto.md): delimitar região e período, verificar dados, revisar a rede, calibrar e comparar com observações independentes. Se faltarem dados, limitar a entrega à demonstração técnica e rotular resultados como exploratórios.
 
-### Etapa 3 — Testar uma intervenção viária
+### Etapa 3 — Testar intervenções viárias
 
-Adicionar uma ação simples, seu custo e pré-condições. Comparar cenário base e intervenção com entradas equivalentes, replicações e efeitos nas vias próximas.
+Adicionar ações de manutenção, operação ou capacidade, com custos e pré-condições. Comparar cenário-base e intervenção com entradas equivalentes, replicações e efeitos nos trechos e cruzamentos próximos.
 
 ### Etapa 4 — Primeira arena controlada
 
-Executar duas políticas simples e uma política de referência, no mesmo estado inicial e em replicações pareadas. Depois demonstrar cinco agentes como experiência de produto, sem tratar cinco execuções únicas como benchmark estatístico.
+Executar cinco empresas de infraestrutura viária e políticas de referência, cada uma em cópia isolada da mesma rede e em replicações pareadas. Não tratar uma execução por empresa como benchmark estatístico.
 
-### Etapa 5 — Ampliar modelos urbanos
+### Etapa 5 — Ampliar o modelo de tráfego
 
-Incorporar domínios somente com variáveis, dados, unidades, escalas temporais, interfaces e protocolos de validação definidos. Validar também as interações entre os modelos.
+Adicionar tipos de via, obras, conservação e segurança viária conforme dados, unidades, escalas temporais, interfaces e protocolos de validação forem definidos. Outros domínios urbanos ficam fora do recorte atual.
 
 ### Etapa 6 — Benchmark e pesquisa
 
@@ -218,7 +229,7 @@ Se um gate não for cumprido, o sistema pode continuar útil para exploração t
 
 ## 13. Decisões em aberto
 
-1. Qual caso de uso de mobilidade será a primeira intervenção após validar a linha de base?
+1. Qual será a primeira decisão das empresas: manutenção, capacidade, operação semafórica ou resposta a incidentes?
 2. Qual cidade e área têm dados observados, autorização de uso e parceiro técnico disponíveis?
 3. Qual é a duração simulada de uma rodada e como os domínios avançam em frequências diferentes?
 4. Quais decisões os agentes podem tomar e quais restrições são invioláveis?

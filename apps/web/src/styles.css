@@ -14,6 +14,7 @@ button:focus-visible,input:focus-visible,a:focus-visible,[tabindex="0"]:focus-vi
 .topbar-meta{display:flex;gap:9px;align-items:center;color:#616c65;font:500 10px 'DM Mono',monospace;letter-spacing:.08em}.live-dot{width:6px;height:6px;background:#65a681;border-radius:50%}.topbar-divider{color:#c4c9c3}
 .content{max-width:1512px;margin:0 auto;padding:40px clamp(20px,5vw,76px) 34px}
 .page-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:28px}
+.focus-banner{margin:0 0 18px;padding:15px 18px;background:#edf3ed;border:1px solid #d7e2d9;border-left:3px solid var(--green);border-radius:4px;color:#344c3e}.focus-banner strong{font:500 13px 'Space Grotesk',sans-serif}.focus-banner p{margin:5px 0 0;color:#64736a;font-size:11px;line-height:1.55}
 .eyebrow{margin:0;color:#7b857d;font:500 10px 'DM Mono',monospace;letter-spacing:.12em}
 h1,h2,p{margin-top:0}
 h1{font:500 clamp(26px,3.2vw,40px)/1.1 'Space Grotesk',sans-serif;letter-spacing:-.045em;margin:11px 0 9px}
