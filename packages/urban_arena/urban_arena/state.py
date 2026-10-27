@@ -71,6 +71,16 @@ class CityState(StrictModel):
             raise ValueError("área verde deve cobrir exatamente os distritos urbanos habitacionais")
         if set(self.population.residents_by_district) != set(self.employment.jobs_by_district):
             raise ValueError("população e emprego devem usar o mesmo catálogo de distritos")
+        urban_population = sum(self.population.residents_by_district[district_id] for district_id in urban_ids)
+        catchment_population = sum(
+            residents
+            for district_id, residents in self.population.residents_by_district.items()
+            if district_id not in urban_ids
+        )
+        if urban_population != self.population.urban_residents:
+            raise ValueError("residentes dos distritos urbanos não fecham com urban_residents")
+        if catchment_population != self.population.rural_catchment_residents:
+            raise ValueError("residentes dos distritos externos não fecham com rural_catchment_residents")
         if self.budget.fixed_operations + self.budget.reserve + self.budget.discretionary_budget != self.budget.credits_per_round:
             raise ValueError("envelope do orçamento deve fechar com credits_per_round")
         return self
@@ -398,6 +408,8 @@ class StateTransitionResult(StrictModel):
                 raise ValueError("candidate_state pertence a outra instância")
             if self.candidate_state.round_index != self.round_index:
                 raise ValueError("candidate_state pertence a outra rodada")
+            if self.candidate_state.parent_city_state_hash != self.parent_city_state_hash:
+                raise ValueError("candidate_state pertence a outro estado pai")
             if self.candidate_state.city_state_hash != self.city_state_hash:
                 raise ValueError("city_state_hash não corresponde ao candidato")
         if self.domain_transition == "not_run" and self.delta.domains:
