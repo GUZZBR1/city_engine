@@ -9,14 +9,14 @@ from .models import (
     RequestedTrip,
     RoadEdge,
     RoadNode,
+    SignalPhase,
+    SignalTimingIntervention,
     SimulationEngine,
     SimulationError,
     SimulationInput,
     SimulationLimits,
     SimulationResult,
     SimulationWindow,
-    SignalTimingIntervention,
-    SignalPhase,
     TrafficSignal,
 )
 from .sumo import SumoEngine
@@ -39,6 +39,11 @@ def run_simulation(
     """
     if inputs is None:
         inputs = load_aurora_input(city_id, window_id)
+    elif inputs.window.id != window_id:
+        raise SimulationError(
+            "invalid_input",
+            "A janela do contrato não corresponde à janela solicitada.",
+        )
     if inputs.city_id != city_id:
         raise SimulationError("invalid_input", f"O contrato pertence a '{inputs.city_id}', não a '{city_id}'.")
     if signal_timing_intervention is not None:

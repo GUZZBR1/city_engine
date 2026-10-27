@@ -8,12 +8,12 @@ from simulation import (
     RequestedTrip,
     RoadEdge,
     RoadNode,
+    SignalTimingIntervention,
+    SignalTimingPhase,
     SimulationError,
     SimulationInput,
     SimulationLimits,
     SimulationWindow,
-    SignalTimingIntervention,
-    SignalTimingPhase,
     SumoEngine,
     apply_signal_timing_intervention,
     compile_sumo_inputs,
@@ -62,6 +62,14 @@ def test_current_aurora_contract_adapts_network_and_od_flows():
     assert len(inputs.traffic_signals) == 2
     assert inputs.trips[0].departure_seconds > 0
     assert inputs.warnings == ()
+
+
+def test_run_simulation_rejects_explicit_input_for_different_window():
+    with pytest.raises(SimulationError) as error:
+        run_simulation(window_id="weekday_off_peak", inputs=sample_input())
+
+    assert error.value.code == "invalid_input"
+    assert str(error.value) == "A janela do contrato não corresponde à janela solicitada."
 
 
 def test_compiler_marks_only_configured_signal_nodes_as_traffic_lights(tmp_path):
