@@ -35,7 +35,11 @@ observation, or demand file is generated. The smoke step loads that network in
 `sumo` and advances one simulated second with no routes or vehicles.
 SUMO's wall-clock generation timestamp is normalized in the network comment;
 repeated builds from this pinned input and tool version therefore have a stable
-network SHA-256.
+network SHA-256 across different worktree locations. Input and output paths
+passed to `netconvert` are repository-relative, with the repository root as
+its working directory. `--osm-file` and `--output-dir` must resolve inside the
+repository; external paths are rejected because SUMO embeds build paths in the
+network configuration comment.
 
 ## Source and attribution
 
@@ -45,13 +49,17 @@ was fetched on 2026-10-27 UTC from
 144.84, -37.86, 144.95, -37.80. `source.json` records the API, bounds, fetch
 interval, tile layout, and retained entity counts. `manifest.json` records
 SHA-256 hashes for the exact OSM input and generated SUMO network, SUMO and
-netconvert versions, build options, output counts, and smoke-test result.
+netconvert versions, build options, output counts, smoke-test result, and
+smoke stderr (including warnings about guessed actuated control without
+controlling detectors).
 
 © OpenStreetMap contributors. OpenStreetMap data is available under the
 [Open Database License 1.0 (ODbL)](https://www.openstreetmap.org/copyright).
-The SUMO network is a Produced Work derived from that database; the OSM
-attribution and share-alike obligations apply. The source XML includes the OSM
-copyright attribution, and SUMO output is generated with its license metadata.
+The source XML retains OSM attribution. The generated file is OSM-derived
+network data; whether its redistribution is treated as a derivative database,
+and which terms then apply, depends on its legal classification. This document
+does not settle that question. Consult the linked ODbL and OSM copyright
+guidance for the intended use and distribution context.
 
 ## Scope and limits
 

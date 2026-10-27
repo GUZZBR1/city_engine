@@ -14,12 +14,12 @@ SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-or-later
 <netconvertConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
 
     <input>
-        <osm-files value="/home/gusta/.t3/worktrees/city_engine/t3-e34e4b62/data/networks/west-gate-bridge-2026-10-27/west-gate.osm.xml"/>
+        <osm-files value="data/networks/west-gate-bridge-2026-10-27/west-gate.osm.xml"/>
     </input>
 
     <output>
         <write-license value="true"/>
-        <output-file value="/home/gusta/.t3/worktrees/city_engine/t3-e34e4b62/data/networks/west-gate-bridge-2026-10-27/west-gate.net.xml"/>
+        <output-file value="data/networks/west-gate-bridge-2026-10-27/west-gate.net.xml"/>
         <output.street-names value="true"/>
     </output>
 

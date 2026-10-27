@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -34,7 +33,6 @@ BOUNDS = (144.84, -37.86, 144.95, -37.80)  # west, south, east, north
 BRIDGE_WAYS = (197882461, 389828674)
 OSM_API = "https://api.openstreetmap.org/api/0.6/map"
 USER_AGENT = "city-engine-west-gate-network-pipeline/1.0 (OSM extract; project repository)"
-SUMO_VERSION = "1.28.0"
 
 
 def sha256(path: Path) -> str:
@@ -57,6 +55,18 @@ def executable(name: str) -> str:
     if local.is_file():
         return str(local)
     raise RuntimeError(f"{name} not found; install requirements-sumo.txt into .venv or add SUMO to PATH")
+
+
+def repository_path(path: Path, option_name: str) -> tuple[Path, str]:
+    resolved = path.expanduser().resolve()
+    try:
+        relative = resolved.relative_to(ROOT)
+    except ValueError as error:
+        raise RuntimeError(
+            f"{option_name} must be inside the repository root ({ROOT}); external paths are unsupported "
+            "because netconvert records paths in the generated network"
+        ) from error
+    return resolved, relative.as_posix()
 
 
 def _merge_api_tiles(destination: Path, columns: int, rows: int, pause_seconds: float) -> dict:
@@ -202,8 +212,8 @@ def main() -> int:
     try:
         netconvert = executable("netconvert")
         sumo = executable("sumo")
-        osm = args.osm_file.resolve()
-        output_dir = args.output_dir.resolve()
+        osm, osm_arg = repository_path(args.osm_file, "--osm-file")
+        output_dir, output_dir_arg = repository_path(args.output_dir, "--output-dir")
         output_dir.mkdir(parents=True, exist_ok=True)
         provenance = None
         if args.download:
@@ -230,10 +240,11 @@ def main() -> int:
             raise RuntimeError(f"OSM input is missing expected West Gate bridge ways: {missing_bridge_ways}")
 
         net_path = output_dir / NET_FILE.name
+        net_arg = (Path(output_dir_arg) / NET_FILE.name).as_posix()
         conversion = [
             netconvert,
-            "--osm-files", str(osm),
-            "--output-file", str(net_path),
+            "--osm-files", osm_arg,
+            "--output-file", net_arg,
             "--lefthand",
             "--geometry.remove",
             "--ramps.guess",
@@ -245,7 +256,7 @@ def main() -> int:
             "--output.street-names",
             "--write-license", "true",
         ]
-        converted = subprocess.run(conversion, check=True, capture_output=True, text=True)
+        converted = subprocess.run(conversion, cwd=ROOT, check=True, capture_output=True, text=True)
         _normalize_generated_timestamp(net_path)
         node_count, edge_count, lane_count, road_classes, named_approaches, geographic_bounds = _network_counts(net_path)
         if edge_count == 0 or lane_count == 0 or node_count == 0:
@@ -256,7 +267,8 @@ def main() -> int:
         # One simulated second proves SUMO can load and step the generated network;
         # no routes or detector demand are written or passed to SUMO.
         smoke = subprocess.run(
-            [sumo, "--net-file", str(net_path), "--begin", "0", "--end", "1", "--no-step-log", "true", "--duration-log.disable"],
+            [sumo, "--net-file", net_arg, "--begin", "0", "--end", "1", "--no-step-log", "true", "--duration-log.disable"],
+            cwd=ROOT,
             check=True,
             capture_output=True,
             text=True,
@@ -265,7 +277,7 @@ def main() -> int:
             "pipeline": "West Gate Bridge OSM to SUMO network",
             "network_snapshot_date": (provenance or {}).get("fetch_started_utc", utc_now())[:10],
             "inputs": {
-                "osm_file": osm.name,
+                "osm_file": osm_arg,
                 "osm_sha256": sha256(osm),
                 "osm_source": "OpenStreetMap API 0.6 map endpoint",
                 "osm_attribution": "© OpenStreetMap contributors",
@@ -279,19 +291,10 @@ def main() -> int:
                 "netconvert_version": _version(netconvert),
                 "sumo_version": _version(sumo),
                 "working_directory": ". (repository root)",
-                "netconvert_command": [
-                    Path(netconvert).name if part == netconvert else
-                    Path(sumo).name if part == sumo else
-                    Path(part).resolve().relative_to(ROOT).as_posix() if Path(part).is_absolute() else part
-                    for part in conversion
-                ],
-                "sumo_smoke_command": [
-                    Path(sumo).name if part == sumo else
-                    Path(part).resolve().relative_to(ROOT).as_posix() if Path(part).is_absolute() else part
-                    for part in [sumo, "--net-file", str(net_path), "--begin", "0", "--end", "1", "--no-step-log", "true", "--duration-log.disable"]
-                ],
+                "netconvert_command": [Path(netconvert).name, *conversion[1:]],
+                "sumo_smoke_command": [Path(sumo).name, "--net-file", net_arg, "--begin", "0", "--end", "1", "--no-step-log", "true", "--duration-log.disable"],
                 "network_sha256": sha256(net_path),
-                "network_file": net_path.name,
+                "network_file": net_arg,
                 "junction_count": node_count,
                 "edge_count": edge_count,
                 "lane_count": lane_count,
@@ -306,6 +309,7 @@ def main() -> int:
             "source_fetch": provenance,
             "netconvert_warnings": converted.stderr.splitlines(),
             "sumo_smoke_output": smoke.stdout.strip().splitlines(),
+            "sumo_smoke_stderr": smoke.stderr.splitlines(),
             "assumptions_and_limits": [
                 "The network is an OSM-derived road geometry snapshot, not an engineering-validated as-built model.",
                 "The bbox includes the West Gate Bridge and nearby approaches/accesses; boundary connectivity is truncated to roads selected by the bbox query.",
