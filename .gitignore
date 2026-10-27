@@ -1,0 +1,31 @@
+# Python environments, bytecode and build/test artifacts
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Frontend dependencies and generated output
+node_modules/
+apps/web/dist/
+*.tsbuildinfo
+
+# Local environment files and credentials
+.env
+.env.*
+!.env.example
+
+# Local agent/runtime state is not project source
+.omx/
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/

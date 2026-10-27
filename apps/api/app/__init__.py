@@ -1,0 +1,1 @@
+"""Urban Arena API application."""

@@ -1,0 +1,1200 @@
+{
+  "contract_version": "1.0",
+  "city_id": "aurora-base-v1",
+  "snapshot_id": "aurora-base-v1:c89f247e587f7b94c875616950a7fef7a9bdecb3646d8cd50c4071681a5b166d",
+  "snapshot_hash": "c89f247e587f7b94c875616950a7fef7a9bdecb3646d8cd50c4071681a5b166d",
+  "provenance": "synthetic",
+  "seed": 42,
+  "window": {
+    "id": "weekday_am_peak",
+    "start": "07:00",
+    "end": "09:00",
+    "duration_seconds": 7200
+  },
+  "nodes": [
+    {
+      "id": "node:00:00",
+      "x_m": 0.0,
+      "y_m": 0.0
+    },
+    {
+      "id": "node:00:01",
+      "x_m": 1500.0,
+      "y_m": 0.0
+    },
+    {
+      "id": "node:00:02",
+      "x_m": 3000.0,
+      "y_m": 0.0
+    },
+    {
+      "id": "node:00:03",
+      "x_m": 4500.0,
+      "y_m": 0.0
+    },
+    {
+      "id": "node:00:04",
+      "x_m": 6000.0,
+      "y_m": 0.0
+    },
+    {
+      "id": "node:01:00",
+      "x_m": 0.0,
+      "y_m": 1500.0
+    },
+    {
+      "id": "node:01:01",
+      "x_m": 1500.0,
+      "y_m": 1500.0
+    },
+    {
+      "id": "node:01:02",
+      "x_m": 3000.0,
+      "y_m": 1500.0
+    },
+    {
+      "id": "node:01:03",
+      "x_m": 4500.0,
+      "y_m": 1500.0
+    },
+    {
+      "id": "node:01:04",
+      "x_m": 6000.0,
+      "y_m": 1500.0
+    },
+    {
+      "id": "node:02:00",
+      "x_m": 0.0,
+      "y_m": 3000.0
+    },
+    {
+      "id": "node:02:01",
+      "x_m": 1500.0,
+      "y_m": 3000.0
+    },
+    {
+      "id": "node:02:02",
+      "x_m": 3000.0,
+      "y_m": 3000.0
+    },
+    {
+      "id": "node:02:03",
+      "x_m": 4500.0,
+      "y_m": 3000.0
+    },
+    {
+      "id": "node:02:04",
+      "x_m": 6000.0,
+      "y_m": 3000.0
+    },
+    {
+      "id": "node:03:00",
+      "x_m": 0.0,
+      "y_m": 4500.0
+    },
+    {
+      "id": "node:03:01",
+      "x_m": 1500.0,
+      "y_m": 4500.0
+    },
+    {
+      "id": "node:03:02",
+      "x_m": 3000.0,
+      "y_m": 4500.0
+    },
+    {
+      "id": "node:03:03",
+      "x_m": 4500.0,
+      "y_m": 4500.0
+    },
+    {
+      "id": "node:03:04",
+      "x_m": 6000.0,
+      "y_m": 4500.0
+    },
+    {
+      "id": "node:04:00",
+      "x_m": 0.0,
+      "y_m": 6000.0
+    },
+    {
+      "id": "node:04:01",
+      "x_m": 1500.0,
+      "y_m": 6000.0
+    },
+    {
+      "id": "node:04:02",
+      "x_m": 3000.0,
+      "y_m": 6000.0
+    },
+    {
+      "id": "node:04:03",
+      "x_m": 4500.0,
+      "y_m": 6000.0
+    },
+    {
+      "id": "node:04:04",
+      "x_m": 6000.0,
+      "y_m": 6000.0
+    }
+  ],
+  "roads": [
+    {
+      "id": "edge:00:00->00:01",
+      "from_node": "node:00:00",
+      "to_node": "node:00:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:00:00->01:00",
+      "from_node": "node:00:00",
+      "to_node": "node:01:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:00:01->00:00",
+      "from_node": "node:00:01",
+      "to_node": "node:00:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:00:01->01:01",
+      "from_node": "node:00:01",
+      "to_node": "node:01:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:00:02->00:03",
+      "from_node": "node:00:02",
+      "to_node": "node:00:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:00:02->01:02",
+      "from_node": "node:00:02",
+      "to_node": "node:01:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:00:03->00:02",
+      "from_node": "node:00:03",
+      "to_node": "node:00:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:00:03->00:04",
+      "from_node": "node:00:03",
+      "to_node": "node:00:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:00:03->01:03",
+      "from_node": "node:00:03",
+      "to_node": "node:01:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:00:04->00:03",
+      "from_node": "node:00:04",
+      "to_node": "node:00:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:00:04->01:04",
+      "from_node": "node:00:04",
+      "to_node": "node:01:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:00->00:00",
+      "from_node": "node:01:00",
+      "to_node": "node:00:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:00->01:01",
+      "from_node": "node:01:00",
+      "to_node": "node:01:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:00->02:00",
+      "from_node": "node:01:00",
+      "to_node": "node:02:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:01->00:01",
+      "from_node": "node:01:01",
+      "to_node": "node:00:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:01->01:00",
+      "from_node": "node:01:01",
+      "to_node": "node:01:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:01->01:02",
+      "from_node": "node:01:01",
+      "to_node": "node:01:02",
+      "length_m": 1500.0,
+      "road_class": "arterial",
+      "speed_limit_kmh": 60.0,
+      "lanes": 2,
+      "capacity_vehicles_per_hour": 1800,
+      "crossing_type": "arterial_bridge",
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:01->02:01",
+      "from_node": "node:01:01",
+      "to_node": "node:02:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:02->00:02",
+      "from_node": "node:01:02",
+      "to_node": "node:00:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:02->01:01",
+      "from_node": "node:01:02",
+      "to_node": "node:01:01",
+      "length_m": 1500.0,
+      "road_class": "arterial",
+      "speed_limit_kmh": 60.0,
+      "lanes": 2,
+      "capacity_vehicles_per_hour": 1800,
+      "crossing_type": "arterial_bridge",
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:02->01:03",
+      "from_node": "node:01:02",
+      "to_node": "node:01:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:02->02:02",
+      "from_node": "node:01:02",
+      "to_node": "node:02:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:03->00:03",
+      "from_node": "node:01:03",
+      "to_node": "node:00:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:03->01:02",
+      "from_node": "node:01:03",
+      "to_node": "node:01:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:03->01:04",
+      "from_node": "node:01:03",
+      "to_node": "node:01:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:03->02:03",
+      "from_node": "node:01:03",
+      "to_node": "node:02:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:04->00:04",
+      "from_node": "node:01:04",
+      "to_node": "node:00:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:04->01:03",
+      "from_node": "node:01:04",
+      "to_node": "node:01:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:01:04->02:04",
+      "from_node": "node:01:04",
+      "to_node": "node:02:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:00->01:00",
+      "from_node": "node:02:00",
+      "to_node": "node:01:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:00->02:01",
+      "from_node": "node:02:00",
+      "to_node": "node:02:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:00->03:00",
+      "from_node": "node:02:00",
+      "to_node": "node:03:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:01->01:01",
+      "from_node": "node:02:01",
+      "to_node": "node:01:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:01->02:00",
+      "from_node": "node:02:01",
+      "to_node": "node:02:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:01->03:01",
+      "from_node": "node:02:01",
+      "to_node": "node:03:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:02->01:02",
+      "from_node": "node:02:02",
+      "to_node": "node:01:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:02->02:03",
+      "from_node": "node:02:02",
+      "to_node": "node:02:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:02->03:02",
+      "from_node": "node:02:02",
+      "to_node": "node:03:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:03->01:03",
+      "from_node": "node:02:03",
+      "to_node": "node:01:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:03->02:02",
+      "from_node": "node:02:03",
+      "to_node": "node:02:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:03->02:04",
+      "from_node": "node:02:03",
+      "to_node": "node:02:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:03->03:03",
+      "from_node": "node:02:03",
+      "to_node": "node:03:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:04->01:04",
+      "from_node": "node:02:04",
+      "to_node": "node:01:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:04->02:03",
+      "from_node": "node:02:04",
+      "to_node": "node:02:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:02:04->03:04",
+      "from_node": "node:02:04",
+      "to_node": "node:03:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:00->02:00",
+      "from_node": "node:03:00",
+      "to_node": "node:02:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:00->03:01",
+      "from_node": "node:03:00",
+      "to_node": "node:03:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:00->04:00",
+      "from_node": "node:03:00",
+      "to_node": "node:04:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:01->02:01",
+      "from_node": "node:03:01",
+      "to_node": "node:02:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:01->03:00",
+      "from_node": "node:03:01",
+      "to_node": "node:03:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:01->03:02",
+      "from_node": "node:03:01",
+      "to_node": "node:03:02",
+      "length_m": 1500.0,
+      "road_class": "collector",
+      "speed_limit_kmh": 50.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 900,
+      "crossing_type": "lower_capacity_collector",
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:01->04:01",
+      "from_node": "node:03:01",
+      "to_node": "node:04:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:02->02:02",
+      "from_node": "node:03:02",
+      "to_node": "node:02:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:02->03:01",
+      "from_node": "node:03:02",
+      "to_node": "node:03:01",
+      "length_m": 1500.0,
+      "road_class": "collector",
+      "speed_limit_kmh": 50.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 900,
+      "crossing_type": "lower_capacity_collector",
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:02->03:03",
+      "from_node": "node:03:02",
+      "to_node": "node:03:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:02->04:02",
+      "from_node": "node:03:02",
+      "to_node": "node:04:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:03->02:03",
+      "from_node": "node:03:03",
+      "to_node": "node:02:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:03->03:02",
+      "from_node": "node:03:03",
+      "to_node": "node:03:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:03->03:04",
+      "from_node": "node:03:03",
+      "to_node": "node:03:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:03->04:03",
+      "from_node": "node:03:03",
+      "to_node": "node:04:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:04->02:04",
+      "from_node": "node:03:04",
+      "to_node": "node:02:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:04->03:03",
+      "from_node": "node:03:04",
+      "to_node": "node:03:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:03:04->04:04",
+      "from_node": "node:03:04",
+      "to_node": "node:04:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:04:00->03:00",
+      "from_node": "node:04:00",
+      "to_node": "node:03:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:04:00->04:01",
+      "from_node": "node:04:00",
+      "to_node": "node:04:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:04:01->03:01",
+      "from_node": "node:04:01",
+      "to_node": "node:03:01",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:04:01->04:00",
+      "from_node": "node:04:01",
+      "to_node": "node:04:00",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:04:02->03:02",
+      "from_node": "node:04:02",
+      "to_node": "node:03:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:04:02->04:03",
+      "from_node": "node:04:02",
+      "to_node": "node:04:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:04:03->03:03",
+      "from_node": "node:04:03",
+      "to_node": "node:03:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:04:03->04:02",
+      "from_node": "node:04:03",
+      "to_node": "node:04:02",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:04:03->04:04",
+      "from_node": "node:04:03",
+      "to_node": "node:04:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:04:04->03:04",
+      "from_node": "node:04:04",
+      "to_node": "node:03:04",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    },
+    {
+      "id": "edge:04:04->04:03",
+      "from_node": "node:04:04",
+      "to_node": "node:04:03",
+      "length_m": 1500.0,
+      "road_class": "local",
+      "speed_limit_kmh": 40.0,
+      "lanes": 1,
+      "capacity_vehicles_per_hour": 600,
+      "crossing_type": null,
+      "synthetic": true,
+      "assumption": "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    }
+  ],
+  "traffic_signals": [
+    {
+      "node_id": "node:02:00",
+      "program_id": "aurora-synthetic-fixed-v1",
+      "offset_seconds": 0,
+      "initial_phase_index": 0,
+      "phases": [
+        {
+          "movement": "north_south",
+          "duration_s": 35
+        },
+        {
+          "movement": "all_red",
+          "duration_s": 3
+        },
+        {
+          "movement": "east_west",
+          "duration_s": 25
+        },
+        {
+          "movement": "all_red",
+          "duration_s": 3
+        }
+      ],
+      "synthetic": true,
+      "assumption": "Plano inicial sintético fixo; movimentos são eixos da grade, sem calibração observacional."
+    },
+    {
+      "node_id": "node:02:04",
+      "program_id": "aurora-synthetic-fixed-v1",
+      "offset_seconds": 31,
+      "initial_phase_index": 0,
+      "phases": [
+        {
+          "movement": "north_south",
+          "duration_s": 35
+        },
+        {
+          "movement": "all_red",
+          "duration_s": 3
+        },
+        {
+          "movement": "east_west",
+          "duration_s": 25
+        },
+        {
+          "movement": "all_red",
+          "duration_s": 3
+        }
+      ],
+      "synthetic": true,
+      "assumption": "Plano inicial sintético fixo; movimentos são eixos da grade, sem calibração observacional."
+    }
+  ],
+  "demand": [
+    {
+      "id": "am-od-001",
+      "from_node": "node:01:00",
+      "to_node": "node:01:04",
+      "vehicle_type": "passenger",
+      "rate_vehicles_per_hour": 180.0,
+      "synthetic": true,
+      "assumption": "Fluxo sintético de teste leste-oeste pela travessia arterial."
+    },
+    {
+      "id": "am-od-002",
+      "from_node": "node:03:00",
+      "to_node": "node:03:04",
+      "vehicle_type": "passenger",
+      "rate_vehicles_per_hour": 120.0,
+      "synthetic": true,
+      "assumption": "Fluxo sintético de teste leste-oeste pela travessia coletora."
+    },
+    {
+      "id": "am-od-003",
+      "from_node": "node:00:02",
+      "to_node": "node:04:02",
+      "vehicle_type": "passenger",
+      "rate_vehicles_per_hour": 90.0,
+      "synthetic": true,
+      "assumption": "Fluxo sintético de teste norte-sul dentro da malha."
+    },
+    {
+      "id": "am-od-004",
+      "from_node": "node:04:04",
+      "to_node": "node:00:04",
+      "vehicle_type": "passenger",
+      "rate_vehicles_per_hour": 75.0,
+      "synthetic": true,
+      "assumption": "Fluxo sintético de teste norte-sul dentro da malha."
+    }
+  ],
+  "coordinate_unit": "m",
+  "speed_unit": "km/h",
+  "flow_unit": "vehicles/hour"
+}

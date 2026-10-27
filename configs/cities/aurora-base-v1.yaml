@@ -1,0 +1,213 @@
+schema_version: 1
+city:
+  id: aurora-base-v1
+  name: Aurora
+  description: "Cidade sintética brasileira de referência para a Urban Twin Arena."
+  status: synthetic_benchmark
+  country_reference: BR
+  census_reference_year: 2022
+
+population:
+  total_residents: 67250
+  statistical_basis:
+    unit: municipality
+    operational_size_range: [20000, 500000]
+    municipalities_in_sample: 1668
+    sum_residents_in_sample: 112172687
+    arithmetic_mean_residents: 67249.8
+    note: >-
+      Recorte operacional de municípios pequenos/médios; a média é por
+      município, não é a mediana e não representa apenas a área urbana.
+  household:
+    mean_residents_per_occupied_household: 2.79
+    occupied_households_derived: 24104
+    source_scope: Brazil_national_mean_2022
+  urban_rural:
+    urban_share_reference: 0.8741
+    rural_share_reference: 0.1259
+    urban_residents_derived: 58783
+    rural_catchment_residents_derived: 8467
+    source_scope: Brazil_national_share_2022
+    note: Not specific to municipalities in the selected size range.
+
+urban_footprint:
+  area_km2: 36
+  geometry: square_6km_by_6km
+  urban_resident_density_per_km2_derived: 1633
+  statistical_status: benchmark_design_parameter_not_national_mean
+
+districts:
+  - id: centro
+    type: urban
+    residents: 8817
+    jobs: 12000
+    land_use: administration_commerce_services_transit
+  - id: norte_residencial
+    type: urban
+    residents: 17635
+    jobs: 1500
+    land_use: residential_schools_local_services
+  - id: sul_misto
+    type: urban
+    residents: 14696
+    jobs: 3500
+    land_use: residential_commerce_health
+  - id: leste_logistico
+    type: urban
+    residents: 5878
+    jobs: 6000
+    land_use: logistics_light_industry
+  - id: oeste_verde
+    type: urban
+    residents: 11757
+    jobs: 1000
+    land_use: low_density_residential_park_protected_area
+  - id: entorno_rural
+    type: external_catchment
+    residents: 8467
+    jobs: 0
+    land_use: rural_origin_destination_zone
+
+employment:
+  total_jobs: 24000
+  statistical_status: synthetic_benchmark_assumption
+  note: >-
+    Job count and district distribution are not inferred from population and
+    are not claimed as an average of Brazilian municipalities.
+
+mobility:
+  network:
+    grid_intersections: [5, 5]
+    directed_edges_derived: 74
+    arterial_corridors: 2
+    road_classes:
+      local:
+        speed_limit_kmh: 40
+        lanes: 1
+        capacity_vehicles_per_hour: 600
+        synthetic: true
+        assumption: "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+      collector:
+        speed_limit_kmh: 50
+        lanes: 1
+        capacity_vehicles_per_hour: 900
+        synthetic: true
+        assumption: "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+      arterial:
+        speed_limit_kmh: 60
+        lanes: 2
+        capacity_vehicles_per_hour: 1800
+        synthetic: true
+        assumption: "Hipótese sintética de benchmark por arco direcionado; capacidade agregada do arco."
+    default_road_class: local
+    crossing_road_classes:
+      arterial_bridge: arterial
+      lower_capacity_collector: collector
+    barrier:
+      orientation: north_south
+      crossings: 2
+      crossing_types: [arterial_bridge, lower_capacity_collector]
+    traffic_signals:
+      - node_id: node:02:00
+        program_id: aurora-synthetic-fixed-v1
+        offset_s: 0
+        initial_phase_index: 0
+        phases:
+          - {movement: north_south, duration_s: 35}
+          - {movement: all_red, duration_s: 3}
+          - {movement: east_west, duration_s: 25}
+          - {movement: all_red, duration_s: 3}
+        synthetic: true
+        assumption: "Plano inicial sintético fixo; movimentos são eixos da grade, sem calibração observacional."
+      - node_id: node:02:04
+        program_id: aurora-synthetic-fixed-v1
+        offset_s: 31
+        initial_phase_index: 0
+        phases:
+          - {movement: north_south, duration_s: 35}
+          - {movement: all_red, duration_s: 3}
+          - {movement: east_west, duration_s: 25}
+          - {movement: all_red, duration_s: 3}
+        synthetic: true
+        assumption: "Plano inicial sintético fixo; movimentos são eixos da grade, sem calibração observacional."
+  transit:
+    bus_routes: 1
+    route: [leste_logistico, centro, oeste_verde]
+    peak_headway_minutes: 10
+    off_peak_headway_minutes: 20
+    statistical_status: synthetic_benchmark_assumption
+  commute_main_mode_share:
+    automobile: 0.323
+    bus: 0.214
+    walking: 0.178
+    motorcycle: 0.164
+    bicycle: 0.062
+    other: 0.059
+    source_scope: Brazil_workers_commuting_2022
+    note: >-
+      National proxy for the main mode used to travel to work; not specific
+      to small/medium cities and not a mode share for all trip purposes.
+  simulation_windows:
+    - id: weekday_am_peak
+      start: "07:00"
+      end: "09:00"
+    - id: weekday_off_peak
+      start: "11:00"
+      end: "13:00"
+  simulation_windows_note: Synthetic representative windows, not observed schedules.
+  demand:
+    seed: 42
+    seed_scope: "Semente padrão fornecida ao simulador para aleatoriedade operacional; taxas OD são fixas e não amostradas."
+    generation_method: "Benchmark sintético fixo: taxas por arco OD em veículos por hora, constantes durante cada janela; sem inferência de viagens reais, ocupação ou conversão modal."
+    synthetic: true
+    windows:
+      - window_id: weekday_am_peak
+        od_flows:
+          - {id: am-od-001, from_node: "node:01:00", to_node: "node:01:04", vehicle_type: passenger, rate_vehicles_per_hour: 180, synthetic: true, assumption: "Fluxo sintético de teste leste-oeste pela travessia arterial."}
+          - {id: am-od-002, from_node: "node:03:00", to_node: "node:03:04", vehicle_type: passenger, rate_vehicles_per_hour: 120, synthetic: true, assumption: "Fluxo sintético de teste leste-oeste pela travessia coletora."}
+          - {id: am-od-003, from_node: "node:00:02", to_node: "node:04:02", vehicle_type: passenger, rate_vehicles_per_hour: 90, synthetic: true, assumption: "Fluxo sintético de teste norte-sul dentro da malha."}
+          - {id: am-od-004, from_node: "node:04:04", to_node: "node:00:04", vehicle_type: passenger, rate_vehicles_per_hour: 75, synthetic: true, assumption: "Fluxo sintético de teste norte-sul dentro da malha."}
+      - window_id: weekday_off_peak
+        od_flows:
+          - {id: off-od-001, from_node: "node:01:00", to_node: "node:01:04", vehicle_type: passenger, rate_vehicles_per_hour: 90, synthetic: true, assumption: "Fluxo sintético de teste leste-oeste pela travessia arterial."}
+          - {id: off-od-002, from_node: "node:03:00", to_node: "node:03:04", vehicle_type: passenger, rate_vehicles_per_hour: 60, synthetic: true, assumption: "Fluxo sintético de teste leste-oeste pela travessia coletora."}
+          - {id: off-od-003, from_node: "node:00:02", to_node: "node:04:02", vehicle_type: passenger, rate_vehicles_per_hour: 45, synthetic: true, assumption: "Fluxo sintético de teste norte-sul dentro da malha."}
+          - {id: off-od-004, from_node: "node:04:04", to_node: "node:00:04", vehicle_type: passenger, rate_vehicles_per_hour: 38, synthetic: true, assumption: "Fluxo sintético de teste norte-sul dentro da malha."}
+
+finance:
+  currency: simulated_urban_credits
+  credits_per_round: 100
+  fixed_operations: 60
+  reserve: 10
+  discretionary_budget: 30
+  statistical_status: normalized_game_economy_not_brl
+
+arena:
+  round_duration: one_synthetic_year
+  default_horizon_rounds: 10
+  ai_agent_copies: 5
+  reference_policies:
+    - no_action
+    - fixed_rule
+  initial_state_immutable: true
+  common_random_scenarios: true
+  paired_replicates_required: true
+  default_scoring: multidimensional_dashboard_and_pareto
+  universal_single_score: false
+
+provenance:
+  synthetic_city: true
+  sources:
+    - id: ibge_census_2022_population_classes
+      url: https://agenciadenoticias.ibge.gov.br/media/com_mediaibge/arquivos/2f5fc0ea039546721af0eacafc748718.pdf
+      used_for: municipal_population_mean_by_operational_range
+    - id: ibge_census_2022_household_size
+      url: https://www.ibge.gov.br/biblioteca/visualizacao/livros/liv102011.pdf
+      used_for: mean_residents_per_occupied_household
+    - id: ibge_census_2022_urban_rural_share
+      url: https://www.ibge.gov.br/biblioteca/visualizacao/livros/liv102138.pdf
+      used_for: urban_rural_reference_shares
+    - id: ibge_census_2022_commuting_modes
+      url: https://www.ibge.gov.br/estatisticas/Sociais/populacao/22827-censo-demografico-2022.html?edicao=44665
+      used_for: commute_main_mode_share_proxy
+  empirical_validation_status: not_validated_against_real_city_observations
