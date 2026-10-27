@@ -7,7 +7,46 @@
     "osm_snapshot_date": "2026-10-27",
     "source_crs": "unspecified by TIRTL site metadata"
   },
-  "matching_method": "Candidate OSM ways were inspected for one-way direction and geometry. Distances are exploratory only: TIRTL latitude/longitude fields were interpreted as geographic coordinates and projected locally, although the source does not declare datum/CRS or coordinate accuracy. Nearest-way distance alone is not accepted as a match.",
+  "matching_method": "Candidate OSM ways were inspected for one-way direction and geometry. Distances are inherited exploratory estimates only: the TIRTL latitude/longitude fields were interpreted as geographic coordinates and projected locally, although the source does not declare datum/CRS or coordinate accuracy. The prior record does not name the projection or software, and the source OSM extract is not present in this checkout for independent recomputation. Do not use these estimates as precise offsets. Nearest-way distance alone is not accepted as a match.",
+  "independent_verification": {
+    "audit_date": "2026-10-27",
+    "outcome": "No authoritative evidence located that identifies the physical installation, coordinate reference system/accuracy, carriageway, lane coverage, or direction convention for TIRTL sites 504 and 505. Neither detector is eligible for primary validation.",
+    "source_checksums_and_versions": {
+      "dtp_sites_csv": {
+        "version": "TIRTL Site Data resource, last updated 2026-10-27",
+        "sha256": "d588483a42115c3c25aa3d3dd66e6ab05457cde44993156f950c2d1ad254ddb7",
+        "url": "https://opendata.transport.vic.gov.au/dataset/tirtl-traffic-counts/resource/1f685833-24fd-4eb0-af11-2e7cfc94da74"
+      },
+      "osm_extract": {
+        "version": "bbox extract queried 2026-10-27",
+        "sha256": "56c0496f8dfd62038986c42e99370ece29a13a8f488dbdae8071aba5ceddf1f3",
+        "urls": [
+          "https://www.openstreetmap.org/way/197882461",
+          "https://www.openstreetmap.org/way/389828674"
+        ]
+      },
+      "official_crs_guidance": {
+        "version": "Victorian Government page, last updated 2024-10-18; consulted 2026-10-27",
+        "url": "https://www.land.vic.gov.au/surveying/geodesy/geocentric-datum-of-australia"
+      },
+      "tirtl_direction_and_lane_mechanics": {
+        "version": "Automatic Traffic Counter and Classifier Using TIR Technology, 6-page technical paper; consulted 2026-10-27",
+        "url": "https://ihmcl.co.in/wp-content/uploads/2018/07/ATCC-Using-TIRTL-Technology-1.pdf"
+      },
+      "academic_tirtl_evaluation": {
+        "version": "Georgia DOT, Detection technology testbed on I-475: technology feasibility study, 2020; consulted 2026-10-27",
+        "url": "https://dlg.usg.edu/record/dlg_ggpd_s-ga-bt700-pr4-bm1-b2020-bd4-belec-p-btext"
+      }
+    },
+    "findings": [
+      "DTP's official site-resource dictionary defines site, site_description, latitude, and longitude only. It supplies no CRS, datum, coordinate accuracy, survey method, installation offset, or lane/roadway field. Victorian government guidance identifies GDA2020 as Australia's official datum and MGA2020 as its official map projection, while also noting GDA94 remains supported; this jurisdictional guidance does not establish which reference system DTP used for these TIRTL values.",
+      "DTP labels site 504 as M1 West Gate Bridge Inbound (EB) and site 505 as M1 West Gate Bridge Outbound (WB). The names support intended direction only; they do not independently locate a detector on a particular carriageway or establish physical installation.",
+      "The technical paper describes TIRTL's direction output as dependent on beam-event order and correct installation orientation/configuration. It describes lane detection as an installation-learned measurement. This cannot define the meaning/orientation of DTP's exported W/E heading values or prove which lanes these specific sites cover.",
+      "The Georgia DOT study evaluates count, class, lane association, and speed at a separate I-475 field installation. Its site-specific evidence cannot be transferred to the West Gate Bridge devices.",
+      "OSM ways 197882461 and 389828674 are candidate road geometries, not authoritative as-built survey or DTP detector-placement records. Their one-way tags, lane tags, and geometry do not prove the TIRTL sensor line crosses either way, nor which of five tagged lanes it observes. No matching West Gate installation drawing, as-built record, DTP confirmation, lane map, or West Gate-specific academic validation was located in this audit."
+    ],
+    "distance_provenance": "Preserved from mapping register v1.0: 504 to way 197882461 9.28 m and way 389828674 8.01 m; 505 to way 389828674 6.52 m and way 197882461 10.77 m. These are not independently recomputed. The stated method was a local projected point-to-polyline estimate using coordinates treated as geographic; the source CRS and coordinate accuracy are unknown, and the old record did not specify projection parameters. They are not evidence of a match."
+  },
   "confidence_scale": {
     "high_confidence": "Independent installation/coverage evidence and direction agree with a unique network segment.",
     "medium_confidence": "Multiple independent clues favor a candidate segment, but at least one material uncertainty remains; exploratory analysis only until resolved.",
