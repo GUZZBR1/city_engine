@@ -4,7 +4,7 @@
 
 **Resultado:** nenhuma baseline SUMO foi executada; não há calibração nem validação held-out.
 
-**Decisão:** parar antes da validação principal; preservar o site 505 apenas para exploração.
+**Decisão:** parar antes de qualquer comparação com SUMO; limitar os sites 504/505 a profiling descritivo das observações de origem.
 
 ## 1. Fonte e cobertura
 
@@ -18,10 +18,10 @@ O [registro de mapping versionado](victoria-tirtl-mapping-register.json) contém
 
 | Detector | Candidato | Confiança | Uso principal |
 |---|---|---|---|
-| 504 EB | OSM ways 197882461 / 389828674 | `unresolved` | Excluído |
-| 505 WB | OSM way 389828674 | `medium_confidence` | Exploração somente; excluído |
+| 504 EB | OSM ways 197882461 / 389828674 | `unresolved` | Profiling descritivo; sem comparação espacial |
+| 505 WB | OSM way 389828674 | `medium_confidence` candidato | Profiling descritivo; sem comparação com SUMO |
 
-O dicionário de sites não declara CRS, datum ou precisão das coordenadas. Também não há diagrama de instalação, faixa atendida ou semântica documentada de `heading`. O 505 é favorecido pelo rótulo WB, predominância de `W` e distância exploratória, mas esses dados não confirmam o trecho físico. Não existe correspondência detector→faixa. Nenhum mapping atende ao gate de validação principal.
+O dicionário de sites não declara CRS, datum ou precisão das coordenadas. Também não há diagrama de instalação, faixa atendida ou semântica documentada de `heading`. O 505 é favorecido pelo rótulo WB, predominância de `W` e distância exploratória, mas a independência e confiabilidade dessas pistas não foram estabelecidas e elas não confirmam o trecho físico. Os dois sites podem ser usados somente para profiling descritivo dos próprios registros. Não há autorização para comparação observado-versus-simulado nem espacial com SUMO. Não existe correspondência detector→faixa. Nenhum mapping atende ao gate de validação principal.
 
 ## 3. SUMO baseline
 

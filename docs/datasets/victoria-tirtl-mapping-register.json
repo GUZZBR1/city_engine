@@ -1,5 +1,5 @@
 {
-  "mapping_register_version": "1.0",
+  "mapping_register_version": "1.1",
   "dataset": "Victoria TIRTL Traffic Counts and Classification, October 2026",
   "source_artifacts": {
     "sites_sha256": "d588483a42115c3c25aa3d3dd66e6ab05457cde44993156f950c2d1ad254ddb7",
@@ -48,6 +48,7 @@
         "The meaning of heading is not documented in the available dictionary and the sample includes a contrary heading."
       ],
       "justification": "Label and predominant sample heading favor EB, but proximity favors the WB candidate and the source CRS/installation are undocumented. Do not assign an edge or lane.",
+      "eligible_for_descriptive_profiling": true,
       "eligible_for_exploratory_comparison": false,
       "eligible_for_primary_validation": false
     },
@@ -84,11 +85,12 @@
         "No evidence identifies the physical installation point or covered lane(s)."
       ],
       "justification": "Site label, predominant W heading, and exploratory proximity all favor the WB candidate. These clues support a medium-confidence candidate only; they do not independently confirm a detector-to-edge association.",
-      "eligible_for_exploratory_comparison": true,
+      "eligible_for_descriptive_profiling": true,
+      "eligible_for_exploratory_comparison": false,
       "eligible_for_primary_validation": false
     }
   ],
-  "decision": "No detector mapping is sufficiently confirmed for primary SUMO validation. Site 505 may be used only for clearly labeled exploratory work; site 504 remains unresolved.",
+  "decision": "Neither detector is mapped to a network segment. Both may be used only for descriptive profiling of source observations; no observed-versus-simulated or spatial SUMO comparison is permitted. Site 505 remains a medium-confidence segment candidate, not a confirmed match; site 504 remains unresolved.",
   "evidence_needed_to_upgrade": [
     "DTP-confirmed CRS/datum and positional accuracy for site coordinates.",
     "Detector installation plan or authoritative statement identifying road carriageway and covered lanes.",
