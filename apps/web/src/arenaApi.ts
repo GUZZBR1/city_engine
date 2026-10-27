@@ -51,7 +51,7 @@ export interface ArenaJobDTO {
   snapshot_id: string;
   snapshot_hash: string;
   manifest_hash: string;
-  manifest: ArenaJsonObject & { horizon_rounds: number; provenance: string };
+  manifest: ArenaJsonObject & { horizon_rounds: number; provenance: 'synthetic_config' };
   horizon_rounds: number;
   committed_rounds: number;
   completed_rounds: number;
@@ -169,7 +169,7 @@ function parseArena(payload: unknown): ArenaJobDTO {
   if (!isRecord(arena.manifest)) throw contractError('manifest ausente');
   for (const key of ['schema_version', 'profile_id', 'profile_version', 'parameter_version', 'snapshot_id', 'snapshot_hash', 'generator_version', 'transition_version', 'catalog_version', 'rules_version', 'provenance', 'manifest_hash']) requireString(arena.manifest[key], `manifest.${key}`);
   if (!isRecord(arena.manifest.parameters) || !isRecord(arena.manifest.seeds) || !Object.values(arena.manifest.seeds).every(Number.isInteger)) throw contractError('parâmetros ou seeds do manifest inválidos');
-  if (arena.manifest.horizon_rounds !== arena.horizon_rounds || arena.manifest.provenance !== 'synthetic' ||
+  if (arena.manifest.horizon_rounds !== arena.horizon_rounds || arena.manifest.provenance !== 'synthetic_config' ||
       arena.manifest.snapshot_id !== arena.snapshot_id || arena.manifest.snapshot_hash !== arena.snapshot_hash || arena.manifest.manifest_hash !== arena.manifest_hash || arena.manifest.experiment_id !== undefined && arena.manifest.experiment_id !== arena.experiment_id) {
     throw contractError('manifest não corresponde à arena sintética');
   }

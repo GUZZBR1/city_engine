@@ -8,7 +8,7 @@ function makeArena(overrides: Record<string, unknown> = {}) {
     experiment_id: 'experiment-1', snapshot_id: 'snapshot-1', snapshot_hash: 'snapshot-hash', manifest_hash: 'manifest-hash',
     manifest: { schema_version: '1', profile_id: 'aurora', profile_version: '1', parameter_version: '1', horizon_rounds: 2,
       snapshot_id: 'snapshot-1', snapshot_hash: 'snapshot-hash', generator_version: '1', transition_version: '1', parameters: {}, seeds: {},
-      catalog_version: '1', rules_version: '1', provenance: 'synthetic', manifest_hash: 'manifest-hash' },
+      catalog_version: '1', rules_version: '1', provenance: 'synthetic_config', manifest_hash: 'manifest-hash' },
     horizon_rounds: 2, committed_rounds: 0, completed_rounds: 0,
     instances: ids.map((instance_id) => ({ experiment_id: 'experiment-1', instance_id, agent_id: `agent-${instance_id}`,
       policy_id: `policy-${instance_id}`, policy_version: '1', initial_city_state_hash: 'initial-hash',
@@ -55,6 +55,22 @@ describe('Arena API client', () => {
     const result = await startArena(2);
     expect(result.status).toBe('queued');
     expect(result.instances).toHaveLength(5);
+  });
+
+  it('accepts the real API provenance labels without weakening snapshot identity checks', async () => {
+    const arena = makeArena();
+    expect(arena.provenance).toBe('synthetic');
+    expect(arena.manifest.provenance).toBe('synthetic_config');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ arena }), { status: 200 })));
+    await expect(fetchArena('arena-1')).resolves.toMatchObject({ provenance: 'synthetic', manifest: { provenance: 'synthetic_config' } });
+
+    const badProvenance = makeArena({ manifest: { ...arena.manifest, provenance: 'synthetic' } });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ arena: badProvenance }), { status: 200 })));
+    await expect(fetchArena('arena-1')).rejects.toThrow(/manifest não corresponde à arena sintética/);
+
+    const badSnapshot = makeArena({ manifest: { ...arena.manifest, snapshot_hash: 'different-snapshot-hash' } });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ arena: badSnapshot }), { status: 200 })));
+    await expect(fetchArena('arena-1')).rejects.toThrow(/manifest não corresponde à arena sintética/);
   });
 
   it('rejects horizons outside the API range before making a request', async () => {
