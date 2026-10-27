@@ -5,13 +5,13 @@
 
 ## Finding
 
-No current candidate clears every gate for a West Gate empirical run. The local official TIRTL source has useful time-resolved counts and speed bins under an explicit license, but the mapping of sites 504/505 to a SUMO lane/edge is unresolved and point observations do not identify OD demand. The repository has an executable OSM-derived West Gate network, but its empty-network smoke test is not a traffic validation. See the [pilot audit](victoria-tirtl-pilot.md), [mapping register](victoria-tirtl-mapping-register.json), [network notes](west-gate-sumo-network.md), and [validation status](victoria-tirtl-validation-status.md).
+No current candidate clears every gate for a West Gate empirical run. Under the completed TIRTL evidence decision, sites 504/505 are **`UNSUITABLE_FOR_EMPIRICAL_VALIDATION` on currently available public evidence**. Their historical observations remain source data for descriptive profiling only. The mapping of these sites to a SUMO lane/edge is unresolved, and point observations do not identify OD demand. The repository has an executable OSM-derived West Gate network, but its empty-network smoke test is not a traffic validation. See the [pilot audit](victoria-tirtl-pilot.md), [mapping register](victoria-tirtl-mapping-register.json), [network notes](west-gate-sumo-network.md), and [validation status](victoria-tirtl-validation-status.md).
 
-Scores are qualitative, West Gate-specific comparisons (1 = weak, 5 = strong). Mapping measures verified assignment to a road direction/section, not mere availability of coordinates. Overall rank prioritizes local usefulness and evidence readiness; it is not a score average.
+Scores are qualitative, West Gate-specific research comparisons (1 = weak, 5 = strong). Mapping measures verified assignment to a road direction/section, not mere availability of coordinates. The rank is a **research-priority ranking only**; no rank or score means the source passed an empirical-validation gate. Overall rank prioritizes potential local research value, not current validation eligibility, and is not a score average.
 
-| Rank | Candidate | Mapping | Temporal | License | Demand utility | SUMO fit | Overall |
+| Research priority | Candidate | Mapping | Temporal | License | Demand utility | SUMO fit | Overall |
 |---:|---|---:|---:|---:|---:|---:|---|
-| 1 | DTP TIRTL, West Gate sites 504/505 | 2 | 5 | 5 | 1 | 3 | Best local observation candidate, conditional on independent mapping evidence |
+| 1 | DTP TIRTL, West Gate sites 504/505 | 2 | 5 | 5 | 1 | 3 | Highest-priority local evidence follow-up; currently unsuitable for empirical validation |
 | 2 | DTP SCATS traffic-signal volume data | 2 | 5 | 5 | 3 | 3 | Candidate for independent time-varying count constraints; detector locations still need mapping |
 | 3 | Victoria historical AADT GeoJSON | 4 | 1 | 5 | 3 | 4 | Independent directional volume prior; too coarse and old for time-resolved demand |
 | 4 | FHWA NGSIM I-80 | 4 | 5 | 1 | 4* | 3 | Strong real-traffic research benchmark, but unrelated geography and explicit reuse license not located |
@@ -22,7 +22,7 @@ Scores are qualitative, West Gate-specific comparisons (1 = weak, 5 = strong). M
 
 The [official DTP dataset page](https://opendata.transport.vic.gov.au/dataset/tirtl-traffic-counts) describes optical sensors that count and classify vehicles and measure speed. Records aggregate volume by 15-minute period, site, heading, vehicle class, and speed bin. The portal declares **Creative Commons Attribution 4.0** and warns of classification errors during high throughput and site outages.
 
-The repository's October 2026 audit reports 2,501 site/time/heading groups for site 505. However, the site table does not specify coordinate reference system/datum, coordinate accuracy, physical installation point, lane coverage, or the local convention for exported headings. Sites 504 and 505 therefore remain `unresolved` in the [mapping register](victoria-tirtl-mapping-register.json). Their coordinates do not yet prove a match to a SUMO edge or lane. TIRTL counts also provide no trajectories or OD; they cannot alone define network demand.
+The repository's October 2026 audit reports 2,501 site/time/heading groups for site 505. The historical observations are retained as source data for descriptive profiling only. The [TIRTL validation report](victoria-tirtl-validation-status.md) classifies sites 504/505 as **`UNSUITABLE_FOR_EMPIRICAL_VALIDATION` on available public evidence**: the site table does not specify site-specific CRS/datum or positional accuracy; physical installation location, carriageway and lane coverage are undocumented; and the meaning/orientation of exported headings is unverified, including contrary heading records. No detector-to-lane/edge mapping is established. Reopening requires site-specific confirmation of CRS/datum and coordinate accuracy, an authoritative installation plan or statement identifying carriageway and covered lanes, documented heading semantics resolving contrary headings, and independent verification that the versioned SUMO measurement section matches that installation. Until that evidence is available, do not use these sites for empirical validation or demand generation. TIRTL counts provide no trajectories or OD and cannot alone define network demand.
 
 ### 2. DTP SCATS traffic-signal volumes — independent count candidate
 
@@ -42,7 +42,7 @@ FHWA's [I-80 dataset description](https://www.fhwa.dot.gov/publications/research
 
 ## Demand and leakage boundary for West Gate
 
-- **Reserve TIRTL sites 504 and 505, and all summaries derived from their records, for validation only** if/when mapping is independently resolved. Do not feed their counts, speed profiles, or transformations into demand generation or adjustment.
+- Keep the historical TIRTL observations from sites 504/505 and their summaries as descriptive/source data only. Do not use them for demand generation, adjustment, calibration, or empirical validation under the current evidence decision. Reconsider validation eligibility only after the site-specific reopening evidence listed above is documented.
 - Investigate SCATS detectors at distinct sites/approaches as a possible independent source of time-varying count constraints. First verify their geospatial locations, directions, network coverage, and SUMO assignments. Separate detector IDs prevent reuse of the exact TIRTL observations, but do not remove shared-source or sensor-system biases.
 - Use historical AADT only as a coarse external prior, not a time-resolved profile.
 - DTP confirms West Gate Tunnel project traffic modelling and published assessments, but the reviewed [official overview](https://transport.vic.gov.au/news-and-resources/projects-hub/transport-amenity-program) does not establish availability of executable OD or assignment matrices. Access and license for such inputs remain unknown.
