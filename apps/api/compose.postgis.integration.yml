@@ -1,0 +1,14 @@
+services:
+  postgis:
+    image: postgis/postgis:16-3.6
+    environment:
+      POSTGRES_DB: city_engine_test
+      POSTGRES_USER: city_engine_test
+      POSTGRES_PASSWORD: city_engine_test
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U city_engine_test -d city_engine_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
