@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAurora, fetchComparison, fetchSimulation, startComparison, startSimulation, type Simulation, type SimulationComparison } from './api';
 import type { CityData, LocalFeature } from './contracts';
 import { MapView } from './MapView';
+import { ArenaPanel, type ArenaPanelStatus } from './ArenaPanel';
+import { fetchArena, startArena } from './arenaApi';
+import { createArenaRequestSequence, isArenaPollingStatus, toArenaPanelViewModel } from './arenaViewModel';
+import type { ArenaPanelViewModel } from './ArenaPanel';
 
 type LoadState = 'loading' | 'ready' | 'error';
 type LayerId = 'districts' | 'edges' | 'nodes';
@@ -246,6 +250,72 @@ function ScenarioComparisonPanel() {
   </section>;
 }
 
+function AnnualArenaPanel() {
+  const [horizonRounds, setHorizonRounds] = useState(10);
+  const [viewModel, setViewModel] = useState<ArenaPanelViewModel | null>(null);
+  const [status, setStatus] = useState<ArenaPanelStatus>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [generation, setGeneration] = useState(0);
+  const sequence = useRef<ReturnType<typeof createArenaRequestSequence> | null>(null);
+  if (!sequence.current) sequence.current = createArenaRequestSequence();
+
+  useEffect(() => () => { sequence.current?.invalidate(); }, []);
+
+  useEffect(() => {
+    if (!viewModel || !isArenaPollingStatus(viewModel.status) || !sequence.current?.isCurrent(generation)) return;
+    let stopped = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      try {
+        const job = await fetchArena(viewModel.arenaId);
+        if (stopped || !sequence.current?.isCurrent(generation)) return;
+        const updated = toArenaPanelViewModel(job);
+        setViewModel(updated);
+        setStatus(updated.status);
+        setError(null);
+        if (isArenaPollingStatus(updated.status)) timer = window.setTimeout(poll, 1500);
+      } catch (reason) {
+        if (stopped || !sequence.current?.isCurrent(generation)) return;
+        setError(reason instanceof Error ? reason.message : 'Não foi possível consultar a Arena.');
+        setStatus('failed');
+      }
+    };
+    timer = window.setTimeout(poll, 1500);
+    return () => {
+      stopped = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [generation, viewModel?.arenaId, viewModel?.status]);
+
+  const begin = async (horizon: number) => {
+    const requestGeneration = sequence.current!.begin();
+    setGeneration(requestGeneration);
+    setViewModel(null);
+    setError(null);
+    setStatus('submitting');
+    try {
+      const job = await startArena(horizon);
+      if (!sequence.current!.isCurrent(requestGeneration)) return;
+      const mapped = toArenaPanelViewModel(job);
+      setViewModel(mapped);
+      setStatus(mapped.status);
+    } catch (reason) {
+      if (!sequence.current!.isCurrent(requestGeneration)) return;
+      setError(reason instanceof Error ? reason.message : 'Não foi possível iniciar a Arena.');
+      setStatus('failed');
+    }
+  };
+
+  return <ArenaPanel
+    viewModel={viewModel}
+    status={status}
+    horizonRounds={horizonRounds}
+    error={error}
+    onHorizonChange={setHorizonRounds}
+    onStart={begin}
+  />;
+}
+
 export default function App() {
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<LoadState>('loading');
@@ -326,6 +396,7 @@ export default function App() {
               <dl className="snapshot-details"><div><dt>Snapshot</dt><dd>{data.metadata.snapshot_id}</dd></div><div><dt>Proveniência</dt><dd>{data.metadata.provenance}</dd></div></dl>
             </aside>
           </section>
+          <AnnualArenaPanel />
           <SimulationPanel />
           <ScenarioComparisonPanel />
           <FeatureTable data={data} />
