@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import xml.etree.ElementTree as ET
 from threading import RLock
 from typing import Literal
@@ -39,6 +40,8 @@ from .schemas import (
     TrafficCompetitionFailure,
     TrafficCompetitionRequest,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SimulationNotFoundError(LookupError):
@@ -205,6 +208,12 @@ def run_traffic_competition(competition_id: str) -> None:
                 company_id=failing_company.company_id if failing_company else None, message=str(exc)),
         })
     except Exception:
+        logger.exception(
+            "Traffic competition %s failed during %s (company_id=%s)",
+            competition_id,
+            scenario,
+            failing_company.company_id if failing_company else None,
+        )
         updated = current.model_copy(update={
             "status": "failed",
             "baseline_result": _result_identity(baseline) if baseline else None,

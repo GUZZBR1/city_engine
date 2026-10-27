@@ -222,13 +222,22 @@ function TrafficCompetitionPanel() {
           <table className="comparison-table company-results-table">
             <caption>Resultados pareados das cinco empresas contra a execução-base</caption>
             <thead><tr><th scope="col">Empresa e estratégia</th><th scope="col">Viagens concluídas</th><th scope="col">Tempo médio</th><th scope="col">Velocidade média</th><th scope="col">Fila média</th></tr></thead>
-            <tbody>{competition.companies.map((company) => <tr key={company.company_id}>
+            <tbody>
+              <tr className="baseline-row">
+                <th scope="row"><strong>Execução-base</strong><small>Referência comum às cinco empresas</small></th>
+                <td>{formatComparisonValue(competition.baseline_metrics.trips_completed)} <small>(referência)</small></td>
+                <td>{formatComparisonValue(competition.baseline_metrics.mean_travel_time_seconds)} s <small>(referência)</small></td>
+                <td>{formatComparisonValue(competition.baseline_metrics.mean_speed_kmh)} km/h <small>(referência)</small></td>
+                <td>{formatComparisonValue(competition.baseline_metrics.mean_queue_length_meters)} m <small>(referência)</small></td>
+              </tr>
+              {competition.companies.map((company) => <tr key={company.company_id}>
               <th scope="row"><strong>{company.name}</strong><small>{company.strategy}</small></th>
               <td>{formatComparisonValue(company.metrics?.trips_completed)} <small>({formatComparisonValue(company.deltas_vs_baseline?.trips_completed, true)})</small></td>
               <td>{formatComparisonValue(company.metrics?.mean_travel_time_seconds)} s <small>({formatComparisonValue(company.deltas_vs_baseline?.mean_travel_time_seconds, true)} s)</small></td>
               <td>{formatComparisonValue(company.metrics?.mean_speed_kmh)} km/h <small>({formatComparisonValue(company.deltas_vs_baseline?.mean_speed_kmh, true)})</small></td>
               <td>{formatComparisonValue(company.metrics?.mean_queue_length_meters)} m <small>({formatComparisonValue(company.deltas_vs_baseline?.mean_queue_length_meters, true)} m)</small></td>
-            </tr>)}</tbody>
+              </tr>)}
+            </tbody>
           </table>
         </div>
         <p className="comparison-identities"><strong>Referência-base</strong> · execução {competition.baseline_result?.simulation_id} · SUMO {competition.baseline_result?.engine_version}</p>
