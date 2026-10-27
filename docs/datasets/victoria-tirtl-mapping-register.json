@@ -1,0 +1,98 @@
+{
+  "mapping_register_version": "1.0",
+  "dataset": "Victoria TIRTL Traffic Counts and Classification, October 2026",
+  "source_artifacts": {
+    "sites_sha256": "d588483a42115c3c25aa3d3dd66e6ab05457cde44993156f950c2d1ad254ddb7",
+    "osm_extract_sha256": "56c0496f8dfd62038986c42e99370ece29a13a8f488dbdae8071aba5ceddf1f3",
+    "osm_snapshot_date": "2026-10-27",
+    "source_crs": "unspecified by TIRTL site metadata"
+  },
+  "matching_method": "Candidate OSM ways were inspected for one-way direction and geometry. Distances are exploratory only: TIRTL latitude/longitude fields were interpreted as geographic coordinates and projected locally, although the source does not declare datum/CRS or coordinate accuracy. Nearest-way distance alone is not accepted as a match.",
+  "confidence_scale": {
+    "high_confidence": "Independent installation/coverage evidence and direction agree with a unique network segment.",
+    "medium_confidence": "Multiple independent clues favor a candidate segment, but at least one material uncertainty remains; exploratory analysis only until resolved.",
+    "low_confidence": "Weak or conflicting evidence; excluded from primary validation.",
+    "unresolved": "No defensible segment assignment can be made."
+  },
+  "mappings": [
+    {
+      "detector_id": "504",
+      "coordinates": {"latitude": -37.8309, "longitude": 144.900501, "crs": null},
+      "direction_label": "M1 West Gate Bridge Inbound (EB)",
+      "reported_heading_evidence": "The independent 2026-10-12 sample contains heading E and one record with W; full-month heading audit is not available.",
+      "candidate_segments": [
+        {
+          "segment_id": "osm-way:197882461",
+          "road": "West Gate Freeway/M1, West Gate Bridge",
+          "one_way": true,
+          "lanes": 5,
+          "candidate_direction": "EB/inbound candidate",
+          "exploratory_distance_m": 9.28
+        },
+        {
+          "segment_id": "osm-way:389828674",
+          "road": "West Gate Freeway/M1, West Gate Bridge",
+          "one_way": true,
+          "lanes": 5,
+          "candidate_direction": "WB/outbound candidate",
+          "exploratory_distance_m": 8.01
+        }
+      ],
+      "mapped_segment_id": null,
+      "lane_id": null,
+      "confidence": "unresolved",
+      "spatial_distance_method": "local projected point-to-polyline estimate under unverified source CRS",
+      "ambiguities": [
+        "The coordinate is slightly closer to the candidate way in the opposite direction.",
+        "TIRTL does not publish coordinate datum, accuracy, installation offset, or covered lane(s).",
+        "The meaning of heading is not documented in the available dictionary and the sample includes a contrary heading."
+      ],
+      "justification": "Label and predominant sample heading favor EB, but proximity favors the WB candidate and the source CRS/installation are undocumented. Do not assign an edge or lane.",
+      "eligible_for_exploratory_comparison": false,
+      "eligible_for_primary_validation": false
+    },
+    {
+      "detector_id": "505",
+      "coordinates": {"latitude": -37.830815, "longitude": 144.900329, "crs": null},
+      "direction_label": "M1 West Gate Bridge Outbound (WB)",
+      "reported_heading_evidence": "In the scanned October archive, 2,492 grouped intervals have W and 9 have E.",
+      "candidate_segments": [
+        {
+          "segment_id": "osm-way:389828674",
+          "road": "West Gate Freeway/M1, West Gate Bridge",
+          "one_way": true,
+          "lanes": 5,
+          "candidate_direction": "WB/outbound candidate",
+          "exploratory_distance_m": 6.52
+        },
+        {
+          "segment_id": "osm-way:197882461",
+          "road": "West Gate Freeway/M1, West Gate Bridge",
+          "one_way": true,
+          "lanes": 5,
+          "candidate_direction": "EB/inbound candidate",
+          "exploratory_distance_m": 10.77
+        }
+      ],
+      "mapped_segment_id": null,
+      "lane_id": null,
+      "confidence": "medium_confidence",
+      "spatial_distance_method": "local projected point-to-polyline estimate under unverified source CRS",
+      "ambiguities": [
+        "The coordinate CRS/datum and positional accuracy are not declared by the source.",
+        "The nine E-heading observations conflict with the WB site label; heading semantics are not documented.",
+        "No evidence identifies the physical installation point or covered lane(s)."
+      ],
+      "justification": "Site label, predominant W heading, and exploratory proximity all favor the WB candidate. These clues support a medium-confidence candidate only; they do not independently confirm a detector-to-edge association.",
+      "eligible_for_exploratory_comparison": true,
+      "eligible_for_primary_validation": false
+    }
+  ],
+  "decision": "No detector mapping is sufficiently confirmed for primary SUMO validation. Site 505 may be used only for clearly labeled exploratory work; site 504 remains unresolved.",
+  "evidence_needed_to_upgrade": [
+    "DTP-confirmed CRS/datum and positional accuracy for site coordinates.",
+    "Detector installation plan or authoritative statement identifying road carriageway and covered lanes.",
+    "Documented meaning of TIRTL heading values and resolution of contrary headings.",
+    "Versioned West Gate SUMO network and independent verification that its detector measurement section matches the physical installation."
+  ]
+}
