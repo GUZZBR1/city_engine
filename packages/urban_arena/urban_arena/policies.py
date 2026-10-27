@@ -7,7 +7,8 @@ import json
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-from .arena import ActionProposal, Observation
+from .actions import ActionProposal
+from .observations import Observation
 
 
 @runtime_checkable
@@ -31,7 +32,9 @@ class DeterministicReferencePolicy:
     policy_version: str = "1"
 
     def propose(self, observation: Observation) -> ActionProposal:
+        experiment_id = str(observation.state_view["experiment_id"])
         payload = {
+            "experiment_id": experiment_id,
             "agent_id": self.agent_id,
             "instance_id": observation.instance_id,
             "round_index": observation.round_index,
@@ -40,17 +43,29 @@ class DeterministicReferencePolicy:
             "policy_version": self.policy_version,
             "actions": [],
         }
-        canonical = json.dumps(
-            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
-        )
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
         proposal_id = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        identity = json.dumps(
+            {
+                "experiment_id": experiment_id,
+                "instance_id": observation.instance_id,
+                "round_index": observation.round_index,
+                "agent_id": self.agent_id,
+                "policy_id": self.policy_id,
+                "policy_version": self.policy_version,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
         return ActionProposal(
+            experiment_id=experiment_id,
             proposal_id=proposal_id,
+            idempotency_key=hashlib.sha256(identity.encode("utf-8")).hexdigest(),
             agent_id=self.agent_id,
             instance_id=observation.instance_id,
             round_index=observation.round_index,
             observed_city_state_hash=observation.city_state_hash,
             actions=(),
-            policy_id=self.policy_id,
-            policy_version=self.policy_version,
         )

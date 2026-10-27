@@ -1,154 +1,245 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import hashlib
+import json
+from dataclasses import dataclass, replace
 
 import pytest
 
-from urban_arena.arena import (
-    ActionProposal,
-    ArenaRunner,
-    ParticipantFailure,
-    ProposalConflictError,
-    proposal_content_hash,
-)
+from urban_arena.actions import ActionProposal, HousingParameters, ProposedAction
+from urban_arena.arena import ArenaRunner, ParticipantFailure, ProposalConflictError
 from urban_arena.city import generate_snapshot, load_city_config
 from urban_arena.policies import DeterministicReferencePolicy
+from urban_arena.repository import ProposalRecord
+from urban_arena.state import CityState, StateTransitionResult
 
 
-def _runner() -> tuple[ArenaRunner, object]:
-    snapshot = generate_snapshot(load_city_config())
-    return ArenaRunner(snapshot, "test-experiment"), snapshot
+def _snapshot():
+    return generate_snapshot(load_city_config())
+
+
+def _policies():
+    return [DeterministicReferencePolicy(agent_id=f"agent-{index}") for index in range(5)]
 
 
 @dataclass
 class CountingPolicy:
     agent_id: str
+    action: bool = False
     calls: int = 0
     policy_id: str = "counting"
     policy_version: str = "1"
 
-    def propose(self, observation):
+    def propose(self, observation) -> ActionProposal:
         self.calls += 1
+        identity = {
+            "experiment_id": observation.state_view["experiment_id"],
+            "instance_id": observation.instance_id,
+            "round_index": observation.round_index,
+            "agent_id": self.agent_id,
+            "policy_id": self.policy_id,
+            "policy_version": self.policy_version,
+        }
+        action_list = (
+            [
+                ProposedAction(
+                    action_id="housing-1",
+                    action_type="housing_add_units",
+                    target_id="centro",
+                    parameters=HousingParameters(units=10),
+                )
+            ]
+            if self.action
+            else []
+        )
+        content = {**identity, "actions": [item.model_dump(mode="json") for item in action_list]}
+        canonical = json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        proposal_id = hashlib.sha256(canonical.encode()).hexdigest()
+        idempotency_key = hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
         return ActionProposal(
-            proposal_id=f"{self.agent_id}-{observation.round_index}",
+            experiment_id=str(identity["experiment_id"]),
+            proposal_id=proposal_id,
+            idempotency_key=idempotency_key,
             agent_id=self.agent_id,
             instance_id=observation.instance_id,
             round_index=observation.round_index,
             observed_city_state_hash=observation.city_state_hash,
-            actions=(),
-            policy_id=self.policy_id,
-            policy_version=self.policy_version,
+            actions=tuple(action_list),
         )
 
 
-def test_runner_creates_five_isolated_snapshot_copies() -> None:
-    runner, snapshot = _runner()
-    assert len(runner.instances) == 5
-    assert len({item.instance_id for item in runner.instances}) == 5
-    assert {item.initial_city_state_hash for item in runner.instances} == {snapshot.hash}
+def test_runner_owns_five_isolated_evolutive_city_states() -> None:
+    snapshot = _snapshot()
+    runner = ArenaRunner(snapshot, "test-experiment")
+    states = [runner.state_copy(instance.instance_id) for instance in runner.instances]
 
-    first, second = runner.instances[:2]
-    first_state = runner.state_copy(first.instance_id)
-    first_state.layers["districts"].features[0].properties["residents"] = -1
-    assert runner.state_copy(second.instance_id).layers["districts"].features[0].properties["residents"] >= 0
-    assert snapshot.layers["districts"].features[0].properties["residents"] >= 0
-
-
-def test_observations_are_frozen_and_share_the_same_snapshot_version() -> None:
-    runner, _ = _runner()
-    observations = [runner.observation(item.instance_id, 1) for item in runner.instances]
-
-    assert {item.city_state_hash for item in observations} == {runner.instances[0].initial_city_state_hash}
-    assert all(item.round_index == 1 for item in observations)
-    assert all(item.state_view["population"] == observations[0].state_view["population"] for item in observations)
-    with pytest.raises(TypeError):
-        observations[0].state_view["population"]["total"] = -1
-    with pytest.raises(AttributeError):
-        observations[0].state_view["districts"][0].append({})
+    assert len(states) == 5
+    assert all(isinstance(state, CityState) for state in states)
+    assert {state.round_index for state in states} == {0}
+    assert len({state.city_state_hash for state in states}) == 1
+    assert {state.snapshot_hash for state in states} == {snapshot.hash}
+    states[0].population.residents_by_district["centro"] = -1
+    assert runner.state_copy(runner.instances[1].instance_id).population.residents_by_district["centro"] >= 0
+    assert snapshot.population.total == 67_250
 
 
-def test_reference_policy_is_deterministic_and_empty_proposal_means_no_action() -> None:
-    runner, _ = _runner()
+def test_observation_is_deeply_frozen_and_uses_only_enabled_actions() -> None:
+    runner = ArenaRunner(_snapshot(), "test-experiment")
     observation = runner.observation(runner.instances[0].instance_id, 1)
-    policy = DeterministicReferencePolicy()
+
+    assert observation.round_index == 1
+    assert observation.city_state_hash == runner.instances[0].initial_city_state_hash
+    assert observation.available_actions == ()
+    assert "budget" not in observation.state_view
+    assert observation.budget_view == {"discretionary_limit_cs": 30, "currency": "CS"}
+    with pytest.raises(TypeError):
+        observation.state_view["population"]["total_residents"] = -1
+    with pytest.raises(TypeError):
+        observation.budget_view["credits_per_round"] = 0
+
+
+def test_reference_policy_produces_shared_no_action_contract() -> None:
+    runner = ArenaRunner(_snapshot(), "test-experiment")
+    observation = runner.observation(runner.instances[0].instance_id, 1)
+    policy = DeterministicReferencePolicy(agent_id="reference-1")
+
     first = policy.propose(observation)
     second = policy.propose(observation)
-
+    assert isinstance(first, ActionProposal)
     assert first == second
     assert first.actions == ()
-    assert len(first.proposal_id) == 64
-    assert proposal_content_hash(first) == proposal_content_hash(second)
+    assert first.idempotency_key == second.idempotency_key
 
 
-def test_identical_retry_replays_saved_proposals_without_reinvoking_policies() -> None:
-    runner, _ = _runner()
+def test_no_action_runs_ten_annual_rounds_for_five_instances_deterministically() -> None:
+    snapshot = _snapshot()
+    first = ArenaRunner(snapshot, "test-experiment")
+    second = ArenaRunner(snapshot, "test-experiment")
+
+    for round_index in range(1, 11):
+        first_records = first.run_round(round_index, _policies())
+        second_records = second.run_round(round_index, _policies())
+        assert len(first_records) == 5
+        assert all(record.decision.decision == "no_action" for record in first_records)
+        assert [record.round_record_hash for record in first_records] == [
+            record.round_record_hash for record in second_records
+        ]
+        for record in first_records:
+            assert record.state_transition.domain_transition == "applied"
+            assert record.state_transition.candidate_state.round_index == round_index
+            assert [item.domain for item in record.state_transition.delta.domains] == [
+                "population",
+                "housing",
+                "employment",
+                "services",
+                "environment",
+            ]
+            assert record.state_transition.candidate_state.city_state_hash == record.state_transition.city_state_hash
+            assert len(record.indicator_results) == 25
+
+    assert {state.round_index for state in first.repository.load_states()} == {10}
+    with pytest.raises(ValueError, match="horizonte"):
+        first.run_round(11, _policies())
+
+
+def test_round_retry_replays_commit_without_reinvoking_policy() -> None:
+    runner = ArenaRunner(_snapshot(), "test-experiment")
     policies = [CountingPolicy(agent_id=f"agent-{index}") for index in range(5)]
     first = runner.run_round(1, policies)
     retry = runner.run_round(1, policies)
 
-    assert first == retry
+    assert [record.round_record_hash for record in first] == [record.round_record_hash for record in retry]
     assert [policy.calls for policy in policies] == [1] * 5
+
+
+def test_disabled_action_is_rejected_atomically_but_no_action_year_transitions() -> None:
+    runner = ArenaRunner(_snapshot(), "test-experiment")
+    before = [runner.state_copy(instance.instance_id).city_state_hash for instance in runner.instances]
+    records = runner.run_round(1, [CountingPolicy(agent_id=f"agent-{index}", action=True) for index in range(5)])
+
+    assert all(record.decision.decision == "rejected" for record in records)
+    assert all(record.decision.code == "atomic_validation_failed" for record in records)
+    assert all(record.state_transition.domain_transition == "applied" for record in records)
+    assert [runner.state_copy(instance.instance_id).city_state_hash for instance in runner.instances] != before
+
+
+def test_failed_transition_rolls_back_all_states_and_retries_saved_proposals(monkeypatch) -> None:
+    runner = ArenaRunner(_snapshot(), "test-experiment")
+    policies = [CountingPolicy(agent_id=f"agent-{index}") for index in range(5)]
+    before = [runner.state_copy(instance.instance_id).city_state_hash for instance in runner.instances]
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("injected transition fault")
+
+    monkeypatch.setattr("urban_arena.round_engine.transition_housing", fail)
+    with pytest.raises(RuntimeError, match="injected transition fault"):
+        runner.run_round(1, policies)
+    assert [runner.state_copy(instance.instance_id).city_state_hash for instance in runner.instances] == before
     assert len(runner.recorded_proposals) == 5
 
+    monkeypatch.undo()
+    results = runner.run_round(1, policies)
+    assert len(results) == 5
+    assert [policy.calls for policy in policies] == [1] * 5
 
-def test_same_proposal_identity_with_changed_content_is_a_conflict() -> None:
-    runner, _ = _runner()
-    original = runner.run_round(1, [CountingPolicy(agent_id=f"agent-{index}") for index in range(5)])[0]
-    changed = ActionProposal(
-        proposal_id=original.proposal_id,
-        agent_id=original.agent_id,
-        instance_id=original.instance_id,
-        round_index=original.round_index,
-        observed_city_state_hash=original.observed_city_state_hash,
-        actions=({"action": "changed"},),
-        policy_id=original.policy_id,
-        policy_version=original.policy_version,
-    )
+
+def test_same_policy_identity_with_changed_proposal_content_conflicts() -> None:
+    runner = ArenaRunner(_snapshot(), "test-experiment")
+    policies = [CountingPolicy(agent_id=f"agent-{index}") for index in range(5)]
+    runner.run_round(1, policies)
+    saved = runner.recorded_proposals[0]
+    changed = saved.proposal.model_copy(update={"budget_request": 1})
+
     with pytest.raises(ProposalConflictError):
-        runner.record_proposal(changed)
+        runner.repository.record_proposal(
+            ProposalRecord(
+                proposal=changed,
+                policy_id=saved.policy_id,
+                policy_version=saved.policy_version,
+            )
+        )
 
 
-def test_policy_failure_is_visible_and_never_becomes_empty_proposal() -> None:
+def test_repository_rejects_stale_parent_for_complete_round_commit() -> None:
+    runner = ArenaRunner(_snapshot(), "test-experiment")
+    committed = runner.run_round(1, _policies())
+    stale_parent_hash = "f" * 64
+    stale_records = []
+    for record in committed:
+        transition_data = record.state_transition.model_dump(mode="python")
+        transition_data["parent_city_state_hash"] = stale_parent_hash
+        transition_data["delta"]["parent_city_state_hash"] = stale_parent_hash
+        transition_data["candidate_state"]["parent_city_state_hash"] = stale_parent_hash
+        stale_transition = StateTransitionResult.model_validate(transition_data)
+        stale_records.append(replace(record, state_transition=stale_transition))
+
+    with pytest.raises(ProposalConflictError, match="compare-and-swap falhou"):
+        runner.repository.commit_round(stale_records)
+    assert {state.round_index for state in runner.repository.load_states()} == {1}
+
+
+def test_agent_failure_pauses_before_any_instance_commit() -> None:
     class FailingPolicy(CountingPolicy):
         def propose(self, observation):
             raise RuntimeError("participant unavailable")
 
-    runner, _ = _runner()
+    runner = ArenaRunner(_snapshot(), "test-experiment")
     policies = [CountingPolicy(agent_id=f"agent-{index}") for index in range(5)]
-    policies[2] = FailingPolicy(agent_id="agent-2")
+    policies[3] = FailingPolicy(agent_id="agent-3")
+    before = [runner.state_copy(instance.instance_id).city_state_hash for instance in runner.instances]
 
     with pytest.raises(ParticipantFailure, match="participant unavailable"):
         runner.run_round(1, policies)
-    assert len(runner.recorded_proposals) == 2
+    assert [runner.state_copy(instance.instance_id).city_state_hash for instance in runner.instances] == before
+    assert len(runner.repository.recorded_proposals) == 3
 
 
-def test_default_horizon_rejects_round_eleven_and_non_array_actions() -> None:
-    runner, _ = _runner()
-    instance_id = runner.instances[0].instance_id
-    with pytest.raises(ValueError, match="entre 1 e 10"):
-        runner.observation(instance_id, 11)
-    with pytest.raises(ValueError, match="entre 1 e 10"):
-        runner.run_round(11, [CountingPolicy(agent_id=f"agent-{index}") for index in range(5)])
-    with pytest.raises(ValueError, match="só coleta a rodada 1"):
-        runner.observation(instance_id, 2)
-    with pytest.raises(ValueError, match="só coleta a rodada 1"):
-        runner.run_round(2, [CountingPolicy(agent_id=f"agent-{index}") for index in range(5)])
+def test_round_engine_produces_no_universal_ranking_or_winner() -> None:
+    runner = ArenaRunner(_snapshot(), "test-experiment")
+    records = runner.run_round(1, _policies())
 
-    with pytest.raises(TypeError, match="actions deve ser uma lista ou tupla"):
-        ActionProposal(
-            proposal_id="invalid",
-            agent_id="agent",
-            instance_id=instance_id,
-            round_index=1,
-            observed_city_state_hash=runner.instances[0].initial_city_state_hash,
-            actions=None,
-            policy_id="test",
-            policy_version="1",
-        )
-
-
-def test_arena_has_no_universal_ranking_and_exposes_transition_dependency() -> None:
-    runner, _ = _runner()
-    assert "TransitionEngine" in runner.transition_dependency
     assert not hasattr(runner, "ranking")
     assert not hasattr(runner, "winner")
+    assert not any(hasattr(record, "score") for record in records)
