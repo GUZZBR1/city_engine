@@ -37,7 +37,8 @@ class InMemoryObservationStore:
         self._lock = RLock()
 
     def upsert(self, observation: TrafficObservation) -> None:
-        key = (observation.dataset_id, observation.source_id)
+        series_id = observation.metadata.get("series_id", observation.source_id)
+        key = (observation.dataset_id, str(series_id))
         with self._lock:
             current = self._latest.get(key)
             if current is None or observation.timestamp >= current.timestamp:

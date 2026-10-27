@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import zipfile
 from datetime import datetime
 
 import pytest
@@ -22,6 +23,7 @@ from traffic_observations import (
     SmartCityTrafficCsvAdapter,
     TrafficObservation,
     UnsupportedSourceFilter,
+    VictoriaTirtlZipAdapter,
 )
 
 
@@ -141,6 +143,119 @@ def test_adapter_rejects_changed_sidecar_after_manifest_hash(tmp_path):
     sensor_path.write_text('{"sensors":[]}', encoding="utf-8")
 
     with pytest.raises(DatasetSourceError, match="sidecar mudou depois"):
+        next(adapter.iter_observations())
+
+
+def test_victoria_tirtl_adapter_aggregates_observed_bins_and_preserves_limits(tmp_path):
+    sites_path = tmp_path / "sites.csv"
+    sites_path.write_text(
+        "site,site_description,latitude,longitude\n504,West Gate EB,-37.8309,144.900501\n505,West Gate WB,-37.830815,144.900329\n",
+        encoding="utf-8",
+    )
+    archive_path = tmp_path / "tirtl.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(
+            "TIRTLDATA_20261001.csv",
+            "date,time_bin,site,heading,vehicle_class,speed_bin,volume\n"
+            "2026-10-01,8:00,504,E,1,40km/hr to < 45km/hr,3\n"
+            "2026-10-01,8:00,504,E,13,150km/hr +,1\n"
+            "2026-10-01,8:00,504,E,14,45km/hr to < 50km/hr,2\n"
+            "2026-10-01,8:15,505,W,1,50km/hr to < 55km/hr,4\n",
+        )
+
+    adapter = VictoriaTirtlZipAdapter(archive_path, sites_path, site_ids={504})
+    observations = list(adapter.iter_observations())
+
+    assert len(observations) == 1
+    item = observations[0]
+    assert item.timestamp == datetime(2026, 10, 1, 8, 0)
+    assert item.source_id == "vic:tirtl:site:504"
+    assert item.location_id == "tirtl-site:504"
+    assert item.latitude == pytest.approx(-37.8309)
+    assert item.longitude == pytest.approx(144.900501)
+    assert item.vehicle_count == 6
+    assert item.flow_veh_h == 24
+    assert item.mean_speed_kmh == pytest.approx((42.5 * 3 + 150 * 1 + 47.5 * 2) / 6)
+    assert item.provenance_kind == ProvenanceKind.OBSERVED
+    assert item.metadata["spatial_reference"] == "not specified by the source"
+    assert item.metadata["source_vehicle_class_counts"] == {"1": 3, "13": 1, "14": 2}
+    assert item.metadata["data_quality_flags"] == (
+        "speed_mean_is_lower_bound_for_open_top_bin",
+        "contains_tirtl_classification_errors",
+        "contains_bicycle_counts",
+    )
+    assert adapter.manifest.license_status == "verified"
+    assert adapter.manifest.supporting_artifacts[0].artifact == "sites.csv"
+
+
+def test_victoria_tirtl_adapter_does_not_map_unselected_sites_or_fill_missing_intervals(tmp_path):
+    sites_path = tmp_path / "sites.csv"
+    sites_path.write_text(
+        "site,site_description,latitude,longitude\n504,West Gate EB,-37.8309,144.900501\n505,West Gate WB,-37.830815,144.900329\n",
+        encoding="utf-8",
+    )
+    archive_path = tmp_path / "tirtl.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(
+            "TIRTLDATA_20261001.csv",
+            "date,time_bin,site,heading,vehicle_class,speed_bin,volume\n"
+            "2026-10-01,8:00,504,E,1,40km/hr to < 45km/hr,3\n"
+            "2026-10-01,8:30,505,W,1,50km/hr to < 55km/hr,4\n",
+        )
+
+    observations = list(VictoriaTirtlZipAdapter(archive_path, sites_path, site_ids={504}).iter_observations())
+
+    assert len(observations) == 1
+    assert observations[0].source_id == "vic:tirtl:site:504"
+
+
+def test_replay_state_keeps_concurrent_headings_for_same_tirtl_site(tmp_path):
+    sites_path = tmp_path / "sites.csv"
+    sites_path.write_text(
+        "site,site_description,latitude,longitude\n504,West Gate EB,-37.8309,144.900501\n",
+        encoding="utf-8",
+    )
+    archive_path = tmp_path / "tirtl.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(
+            "day.csv",
+            "date,time_bin,site,heading,vehicle_class,speed_bin,volume\n"
+            "2026-10-01,8:00,504,E,1,40km/hr to < 45km/hr,3\n"
+            "2026-10-01,8:00,504,W,1,45km/hr to < 50km/hr,4\n",
+        )
+
+    session = ReplaySession(
+        "tirtl-replay", VictoriaTirtlZipAdapter(archive_path, sites_path, site_ids={504}), ReplayFilters(), 1
+    )
+    advanced = session.step(10)
+
+    assert len(advanced) == 2
+    assert {item.metadata["heading"] for item in advanced} == {"E", "W"}
+    assert {item.metadata["series_id"] for item in session.snapshot().latest_by_location} == {
+        "tirtl-site:504:heading:E", "tirtl-site:504:heading:W"
+    }
+
+
+def test_victoria_tirtl_adapter_rejects_site_hash_drift(tmp_path):
+    sites_path = tmp_path / "sites.csv"
+    sites_path.write_text(
+        "site,site_description,latitude,longitude\n504,West Gate EB,-37.8309,144.900501\n",
+        encoding="utf-8",
+    )
+    archive_path = tmp_path / "tirtl.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(
+            "day.csv",
+            "date,time_bin,site,heading,vehicle_class,speed_bin,volume\n"
+            "2026-10-01,8:00,504,E,1,40km/hr to < 45km/hr,3\n",
+        )
+    adapter = VictoriaTirtlZipAdapter(archive_path, sites_path, site_ids={504})
+    sites_path.write_text(
+        "site,site_description,latitude,longitude\n504,changed,-37.8309,144.900501\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DatasetSourceError, match="Sites mudou"):
         next(adapter.iter_observations())
 
 

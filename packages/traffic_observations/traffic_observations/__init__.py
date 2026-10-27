@@ -8,6 +8,7 @@ from .models import (
     ReplayFilters,
     ReplaySnapshot,
     ReplayStatus,
+    SupportingArtifact,
     TrafficObservation,
 )
 from .replay import (
@@ -21,8 +22,11 @@ from .replay import (
 from .sources import (
     DATASET_ID,
     DATASET_URL,
+    VIC_TIRTL_DATASET_ID,
+    VIC_TIRTL_SOURCE_URL,
     DatasetSourceError,
     SmartCityTrafficCsvAdapter,
+    VictoriaTirtlZipAdapter,
     UnsupportedSourceFilter,
 )
 
@@ -30,6 +34,8 @@ __all__ = [
     "BoundingBox",
     "DATASET_ID",
     "DATASET_URL",
+    "VIC_TIRTL_DATASET_ID",
+    "VIC_TIRTL_SOURCE_URL",
     "DatasetManifest",
     "DatasetSourceError",
     "InMemoryObservationStore",
@@ -44,6 +50,8 @@ __all__ = [
     "ReplaySnapshot",
     "ReplayStatus",
     "SmartCityTrafficCsvAdapter",
+    "SupportingArtifact",
     "TrafficObservation",
     "UnsupportedSourceFilter",
+    "VictoriaTirtlZipAdapter",
 ]

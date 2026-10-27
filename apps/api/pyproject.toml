@@ -9,6 +9,7 @@ description = "FastAPI interface for the Urban Twin Arena MVP 0"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",
+  "asyncpg>=0.29,<1",
   "pydantic>=2.8,<3",
   "urban-arena>=0.1,<1",
   "urban-simulation>=0.1,<1",
