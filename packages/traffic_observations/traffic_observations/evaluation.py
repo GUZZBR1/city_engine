@@ -82,6 +82,8 @@ class EvaluationManifest(ContractModel):
 
 
 class MetricSummary(ContractModel):
+    """Metrics pooled over matched measurement rows; ``n`` counts rows."""
+
     n: int = Field(ge=1)
     mae: float = Field(ge=0)
     rmse: float = Field(ge=0)
@@ -111,11 +113,22 @@ class IntervalError(ContractModel):
 
 
 class EvaluationArtifact(ContractModel):
+    """Comparison results grouped by reported keys without summing detectors.
+
+    Grouped metrics summarize each matched interval row equally. In particular,
+    ``by_segment`` and ``by_window`` are not aggregate corridor or segment
+    volumes when multiple detector rows share a group.
+    """
+
     manifest: EvaluationManifest
     overall: MeasurementMetrics
     by_detector: dict[str, MeasurementMetrics]
-    by_segment: dict[str, MeasurementMetrics]
-    by_window: dict[str, MeasurementMetrics]
+    by_segment: dict[str, MeasurementMetrics] = Field(
+        description="Row-level metrics grouped by segment_id; detector rows are not summed."
+    )
+    by_window: dict[str, MeasurementMetrics] = Field(
+        description="Row-level metrics grouped by interval; detector rows are not summed."
+    )
     intervals: tuple[IntervalError, ...]
 
 

@@ -39,3 +39,8 @@ when the input bins are 15 minutes. A 15-minute pair of 5 and 7 vehicles is
 therefore evaluated as 20 and 28 veh/h for GEH, while MAE and bias remain 2
 vehicles per 15-minute interval. The interval duration comes from the matched
 start and end timestamps. A zero/zero pair has GEH 0; speed has no GEH.
+
+Metrics grouped by detector, segment, or time window summarize the matched
+measurement rows and weight each row equally. They do not sum measurements from
+multiple detectors into a segment or corridor total; such totals require an
+explicit, validated aggregation policy.

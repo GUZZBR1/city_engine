@@ -1,6 +1,6 @@
 # Relatório de validação empírica — TIRTL West Gate Bridge
 
-**Versão:** 0.2 — auditoria de mapping e bloqueios, 2026-10-27
+**Versão:** 0.3 — harness de avaliação e auditoria de mapping, 2026-10-27
 
 **Resultado:** nenhuma baseline SUMO foi executada; não há calibração nem validação held-out.
 
@@ -32,11 +32,11 @@ Mesmo com executáveis instalados, os dados TIRTL são contagens pontuais, não 
 | Métrica solicitada | Baseline | Calibrado no treino | Held-out |
 |---|---:|---:|---:|
 | MAE / RMSE / bias de volume | Não calculado | Não executado | Não executado |
-| GEH por bin/detector/segmento | Não calculado | Não executado | Não executado |
+| GEH por bin/detector/segmento (taxa horária equivalente) | Não calculado | Não executado | Não executado |
 | MAE / RMSE de velocidade | Não calculado | Não executado | Não executado |
 | Erro temporal/resíduos | Não calculado | Não executado | Não executado |
 
-As fórmulas planejadas são: MAE = média de `|simulado − observado|`; RMSE = raiz da média do erro ao quadrado; bias = média de `simulado − observado`; GEH por volume comparável = `sqrt(2*(M−C)^2/(M+C))`, indefinido quando ambos são zero. MAPE não será usado em bins de volume zero ou perto de zero.
+O harness calcula MAE, RMSE e bias em veículos efetivamente contados por intervalo. Para GEH, converte ambos os volumes do intervalo para taxas horárias equivalentes (`contagem × 3600 / duração_em_segundos`) antes de aplicar `sqrt(2*(M−C)^2/(M+C))`; se ambas as taxas forem zero, GEH é zero. A média reportada de GEH é a média não ponderada dos bins pareados. As métricas agrupadas por segmento/janela resumem as linhas pareadas e não somam detectores; totais de corredor exigem uma política de agregação validada. Nenhuma métrica foi calculada nesta auditoria. MAPE não será usado em bins de volume zero ou perto de zero.
 
 ## 4. Protocolo e calibração
 
