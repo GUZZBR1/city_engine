@@ -11,6 +11,30 @@ snapshot = generate_snapshot(config)
 copies = create_agent_copies(snapshot, config)
 ```
 
+The first deterministic round slice records the configured `no_action` baseline.
+It validates an isolated candidate and atomically appends an in-memory receipt,
+while preserving the city snapshot and emitting no annual indicators or SUMO
+output:
+
+```python
+from urban_arena import RoundStore, prepare_no_action_round
+
+store = RoundStore(snapshot)
+candidate = prepare_no_action_round(
+    config,
+    snapshot,
+    experiment_id="experiment-1",
+    instance_id="reference-no-action",
+    round_index=1,
+)
+receipt = store.commit(candidate)
+```
+
+This commits the coordination record only. `domain_transition="not_run"`
+marks that no annual city model is available; the in-memory store is not durable
+production persistence. The remaining round contract is in
+`docs/especificacao/contrato-integrado-arena-v1.md`.
+
 The snapshot contract uses `LocalFeatureCollection` in the
 `synthetic_local_cartesian_m` coordinate space. It is a local metric schema,
 not GeoJSON RFC 7946 and not latitude/longitude. Every generated feature is
