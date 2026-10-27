@@ -1,7 +1,7 @@
 # Research decision: Victoria TIRTL sites 504/505 → West Gate SUMO
 
-**Audit date:** 2026-10-27  
-**Result:** `UNSUITABLE_FOR_EMPIRICAL_VALIDATION`  
+**Audit date:** 2026-10-27
+**Result:** `UNSUITABLE_FOR_EMPIRICAL_VALIDATION`
 **Mapping status:** Sites 504 and 505 remain unresolved and comparison-ineligible. No SUMO edge, lane, or detector measurement section is assigned.
 
 ## Decision
@@ -38,7 +38,7 @@ The current [mapping register](victoria-tirtl-mapping-register.json) correctly l
 
 ## Provenance and claim boundary
 
-Research supported claims: current public DTP labels, coordinates, published dataset schema/aggregation, official Vicmap dataset scope, and official corridor configuration facts.  
-Not established: field-validated detector location, CRS/accuracy, sensor orientation, lane coverage, DTP heading semantics, or detector-to-SUMO mapping.  
-Allowed wording: “DTP labels sites 504/505 as inbound/outbound West Gate Bridge sites; detector-to-network mapping remains unresolved.”  
+Research supported claims: current public DTP labels, coordinates, published dataset schema/aggregation, official Vicmap dataset scope, and official corridor configuration facts.
+Not established: field-validated detector location, CRS/accuracy, sensor orientation, lane coverage, DTP heading semantics, or detector-to-SUMO mapping.
+Allowed wording: “DTP labels sites 504/505 as inbound/outbound West Gate Bridge sites; detector-to-network mapping remains unresolved.”
 Avoid: “504/505 are mapped to the eastbound/westbound SUMO edges” or any claim that nearest geometry establishes lane or direction.
