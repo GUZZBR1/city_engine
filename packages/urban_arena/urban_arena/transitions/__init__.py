@@ -5,6 +5,15 @@ from __future__ import annotations
 from collections.abc import Sequence
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal, InvalidOperation
 
+SUPPORTED_TRANSITION_VERSION = "1.0"
+
+
+def _validate_transition_version(state_version: str, manifest_version: str) -> None:
+    if state_version != manifest_version:
+        raise ValueError("CityState e manifesto devem usar a mesma versão de transição")
+    if manifest_version != SUPPORTED_TRANSITION_VERSION:
+        raise ValueError(f"versão de transição não suportada: {manifest_version}")
+
 
 def _decimal(value: object, name: str) -> Decimal:
     if isinstance(value, bool) or value is None:

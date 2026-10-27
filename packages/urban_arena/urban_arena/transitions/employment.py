@@ -5,10 +5,24 @@ from __future__ import annotations
 from collections.abc import Sequence
 from decimal import Decimal
 
-from . import _decimal, _integer, _largest_remainder, _round_half_up
+from ..manifest import ExperimentManifest
+from ..state import (
+    CityState,
+    CityStateDelta,
+    DomainDelta,
+    EffectiveEvent,
+    canonical_hash,
+)
+from . import (
+    _decimal,
+    _integer,
+    _largest_remainder,
+    _round_half_up,
+    _validate_transition_version,
+)
 
 
-def transition_employment(
+def calculate_employment(
     district_jobs: Sequence[tuple[str, str, int]],
     *,
     annual_growth_rate: float | str,
@@ -63,7 +77,7 @@ def transition_employment(
         }
         if any(share < 0 for share in allocation.values()):
             raise ValueError("frações de alocação não podem ser negativas")
-        if sum(allocation.values(), Decimal(0)) != Decimal(1):
+        if abs(sum(allocation.values(), Decimal(0)) - Decimal(1)) > Decimal("1e-12"):
             raise ValueError("frações de alocação devem somar 1")
         weights = [allocation[district_id] for district_id in urban_ids]
     if sum(weights, Decimal(0)) <= 0:
@@ -78,3 +92,58 @@ def transition_employment(
     ):
         raise ValueError("balanço de empregos não fecha")
     return result, before, after, after - before
+
+
+def transition_employment(
+    state: CityState, manifest: ExperimentManifest
+) -> CityStateDelta:
+    """Return the public employment replacement delta for the next round."""
+    if state.experiment_id != manifest.experiment_id:
+        raise ValueError("CityState e manifesto pertencem a experimentos diferentes")
+    if state.snapshot_hash != manifest.snapshot_hash:
+        raise ValueError("CityState e manifesto devem apontar para o mesmo snapshot")
+    _validate_transition_version(state.transition_version, manifest.transition_version)
+    round_index = state.round_index + 1
+    if round_index > manifest.horizon_rounds:
+        raise ValueError("transição excede o horizonte do manifesto")
+    urban_ids = tuple(state.housing.units_by_district)
+    district_jobs = tuple(
+        (
+            district_id,
+            "urban" if district_id in urban_ids else "external_catchment",
+            jobs,
+        )
+        for district_id, jobs in state.employment.jobs_by_district.items()
+    )
+    result, before, after, net_change = calculate_employment(
+        district_jobs,
+        annual_growth_rate=manifest.parameters.employment.annual_growth_rate,
+        district_allocation=tuple(
+            manifest.parameters.employment.district_allocation.items()
+        ),
+    )
+    ledger = {"jobs_before": before, "jobs_after": after, "jobs_net_change": net_change}
+    digest = canonical_hash(
+        {
+            "parent_city_state_hash": state.city_state_hash,
+            "event_type": "employment_annual_flows",
+            "effective_round": round_index,
+            "payload": ledger,
+        }
+    )
+    event = EffectiveEvent(
+        event_id=f"employment_annual_flows:{digest[:24]}",
+        event_type="employment_annual_flows",
+        effective_round=round_index,
+        payload=ledger,
+    )
+    return CityStateDelta(
+        parent_city_state_hash=state.city_state_hash,
+        domains=(
+            DomainDelta(
+                domain="employment",
+                values={"jobs_by_district": dict(result), "total_jobs": after},
+            ),
+        ),
+        effective_events=(event,),
+    )

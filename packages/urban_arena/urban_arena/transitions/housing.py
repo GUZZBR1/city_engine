@@ -5,7 +5,22 @@ from __future__ import annotations
 from collections.abc import Sequence
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 
-from . import _decimal, _integer, _largest_remainder, _round_half_up
+from ..manifest import ExperimentManifest
+from ..state import (
+    CityState,
+    CityStateDelta,
+    DomainDelta,
+    EffectiveEvent,
+    allocate_housing_stock,
+    canonical_hash,
+)
+from . import (
+    _decimal,
+    _integer,
+    _largest_remainder,
+    _round_half_up,
+    _validate_transition_version,
+)
 
 
 def initialize_urban_housing(
@@ -45,7 +60,7 @@ def initialize_urban_housing(
     return occupied_need, units, tuple(zip(ids, allocated, strict=True))
 
 
-def transition_housing(
+def calculate_housing(
     urban_population_after_transition: int,
     housing_stock: int,
     housing_stock_initial: int,
@@ -101,3 +116,101 @@ def transition_housing(
     ):
         raise ValueError("balanço habitacional não fecha")
     return need, retirement, capacity, built, next_stock, unmet
+
+
+def transition_housing(
+    state: CityState,
+    manifest: ExperimentManifest,
+    population_delta: CityStateDelta,
+) -> CityStateDelta:
+    """Return a balanced housing-state delta using the shared allocation rule."""
+    if state.experiment_id != manifest.experiment_id:
+        raise ValueError("CityState e manifesto pertencem a experimentos diferentes")
+    if state.snapshot_hash != manifest.snapshot_hash:
+        raise ValueError("CityState e manifesto devem apontar para o mesmo snapshot")
+    _validate_transition_version(state.transition_version, manifest.transition_version)
+    if state.round_index + 1 > manifest.horizon_rounds:
+        raise ValueError("transição excede o horizonte do manifesto")
+    if population_delta.parent_city_state_hash != state.city_state_hash:
+        raise ValueError("population_delta deve referenciar o estado pai recebido")
+    if len(population_delta.domains) != 1:
+        raise ValueError("population_delta deve conter somente o domínio population")
+    population_domains = [
+        delta for delta in population_delta.domains if delta.domain == "population"
+    ]
+    if len(population_domains) != 1:
+        raise ValueError(
+            "population_delta deve conter exatamente um domínio population"
+        )
+    round_index = state.round_index + 1
+    if (
+        len(population_delta.effective_events) != 1
+        or population_delta.effective_events[0].event_type != "population_annual_flows"
+        or population_delta.effective_events[0].effective_round != round_index
+    ):
+        raise ValueError("population_delta deve conter o evento demográfico da rodada")
+    urban_ids = tuple(state.housing.units_by_district)
+    population_values = population_domains[0].values["residents_by_district"]
+    if not set(urban_ids).issubset(population_values):
+        raise ValueError("population_delta não contém todos os distritos urbanos")
+    if manifest.parameters.housing.initial_units is not None:
+        initial_stock = manifest.parameters.housing.initial_units
+    else:
+        initial_occupied = _integer(
+            state.housing.occupied_households_urban,
+            "housing.occupied_households_urban",
+        )
+        initial_stock = int(
+            (
+                Decimal(initial_occupied)
+                / (
+                    Decimal(1)
+                    - Decimal(str(manifest.parameters.housing.vacancy_rate_target))
+                )
+            ).to_integral_value(rounding=ROUND_CEILING)
+        )
+    params = manifest.parameters
+    need, retired, capacity, built, next_stock, unmet = calculate_housing(
+        sum(population_values[district_id] for district_id in urban_ids),
+        state.housing.total_units,
+        initial_stock,
+        household_size=params.demography.household_size,
+        vacancy_rate_target=params.housing.vacancy_rate_target,
+        annual_capacity_rate=params.housing.annual_capacity_rate,
+        annual_retirement_rate=params.housing.annual_retirement_rate,
+    )
+    allocation_method = params.housing.district_allocation_method
+    if allocation_method != "proportional_to_existing_stock_largest_remainder":
+        raise ValueError("método de alocação habitacional não suportado")
+    units_by_district = allocate_housing_stock(
+        next_stock, state.housing.units_by_district
+    )
+    values = state.housing.model_dump(mode="python")
+    values.update(total_units=next_stock, units_by_district=units_by_district)
+    ledger = {
+        "occupied_households_need": need,
+        "units_retired": retired,
+        "annual_building_capacity": capacity,
+        "units_built": built,
+        "total_units_after": next_stock,
+        "unserved_housing_demand": unmet,
+    }
+    digest = canonical_hash(
+        {
+            "parent_city_state_hash": state.city_state_hash,
+            "event_type": "housing_annual_flows",
+            "effective_round": round_index,
+            "payload": ledger,
+        }
+    )
+    event = EffectiveEvent(
+        event_id=f"housing_annual_flows:{digest[:24]}",
+        event_type="housing_annual_flows",
+        effective_round=round_index,
+        payload=ledger,
+    )
+    return CityStateDelta(
+        parent_city_state_hash=state.city_state_hash,
+        domains=(DomainDelta(domain="housing", values=values),),
+        effective_events=(event,),
+    )
