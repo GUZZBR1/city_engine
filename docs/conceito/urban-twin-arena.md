@@ -19,11 +19,11 @@ O primeiro modelo será de tráfego e começará numa rede sintética controlada
 - **Participantes:** cinco empresas fictícias de infraestrutura viária, cada uma com estratégia, orçamento e estado próprios.
 - **Território:** uma rede comum que pode conter ruas urbanas, estradas e rodovias; as empresas recebem cópias idênticas no início.
 - **Competição:** as empresas enfrentam a mesma demanda, cenários, sementes e regras. O árbitro aplica ações permitidas e calcula os resultados.
-- **Decisões iniciais:** priorização de manutenção, obras e capacidade viária, operação de cruzamentos e resposta a incidentes, quando esses controles estiverem representados pelo modelo.
+- **Decisões iniciais:** a primeira competição executável varia a temporização de um cruzamento. Manutenção, obras, capacidade viária e resposta a incidentes entram quando esses controles estiverem representados pelo modelo.
 - **Avaliação:** desempenho do tráfego, custo e uso do orçamento, cobertura da rede e efeitos sobre segurança e conservação quando houver modelos e dados para calculá-los. O painel é multidimensional; não existe uma nota universal presumida.
-- **Limite da versão atual:** a bancada já permite visualizar a rede sintética e comparar uma execução-base com uma intervenção semafórica pareada. As cinco empresas e suas decisões ainda são uma etapa futura, não uma função disponível.
+- **Limite da versão atual:** cinco perfis fixos de temporização semafórica competem contra a execução-base no cruzamento `node:02:04`. As empresas ainda não têm orçamento, estratégia configurável, obras, manutenção ou intervenções em múltiplos tipos de via.
 
-O papel das empresas é competir como operadoras e construtoras sob as regras do experimento; elas não substituem governos, não definem leis e não controlam cidades reais. A mecânica de cópias independentes, orçamento comum, cenários pareados, referências e árbitro permanece a mesma.
+O papel das empresas é competir como operadoras e construtoras sob as regras do experimento; elas não substituem governos, não definem leis e não controlam cidades reais. A mecânica de entradas equivalentes, cenários pareados, referências e árbitro permanece a mesma. A rodada atual implementa políticas de sinalização como primeiro recorte dessa lógica.
 
 ## 2. Objetivos e limites
 

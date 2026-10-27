@@ -8,7 +8,7 @@
 
 **Piloto empírico futuro:** [ficha de reprodução do trânsito observado](../piloto/ficha-piloto.md)
 
-> **Recorte atual do produto:** arena de tráfego e infraestrutura viária, com cinco empresas em cópias isoladas da mesma rede. Este documento mantém contratos de evolução mais amplos; modelos urbanos fora de tráfego não fazem parte do escopo atual. A aplicação existente ainda é uma bancada sintética de visualização e comparação base/intervenção.
+> **Recorte atual do produto:** arena de tráfego e infraestrutura viária. A primeira competição já executa cinco políticas de temporização semafórica no mesmo cruzamento, pareadas contra a mesma base. Este documento mantém contratos de evolução mais amplos; obras, pavimentação, orçamento competitivo e rodovias ainda não fazem parte do modelo executável.
 
 ## 1. Decisão executiva
 

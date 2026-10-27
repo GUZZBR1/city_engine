@@ -19,6 +19,8 @@ from .schemas import (
     HealthResponse,
     SimulationRequest,
     SimulationResponse,
+    TrafficCompetitionRequest,
+    TrafficCompetitionResponse,
 )
 from .simulation_jobs import (
     SimulationNotFoundError,
@@ -30,6 +32,9 @@ from .simulation_jobs import (
     create_comparison,
     get_comparison,
     run_comparison,
+    create_traffic_competition,
+    get_traffic_competition,
+    run_traffic_competition,
 )
 
 
@@ -51,7 +56,7 @@ def _local_cors_origin() -> str:
 
 app = FastAPI(
     title="Urban Arena API",
-    description="Consulta Aurora sintética e solicita simulações-base locais.",
+    description="Consulta Aurora sintética e executa simulações e competições locais de tráfego.",
     version="0.1.0",
 )
 app.add_middleware(
@@ -169,3 +174,37 @@ def comparison_status(comparison_id: str) -> ComparisonResponse:
         return ComparisonResponse(comparison=get_comparison(comparison_id))
     except SimulationNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Comparação não encontrada.") from exc
+
+
+@app.post(
+    "/api/v1/traffic-competitions",
+    response_model=TrafficCompetitionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={422: {"model": ErrorResponse}},
+    tags=["competitions"],
+    summary="Executar competição pareada entre cinco empresas viárias",
+)
+def start_traffic_competition(
+    request: TrafficCompetitionRequest,
+    background_tasks: BackgroundTasks,
+) -> TrafficCompetitionResponse:
+    try:
+        competition = create_traffic_competition(request)
+    except InvalidComparisonScenario as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    background_tasks.add_task(run_traffic_competition, competition.competition_id)
+    return TrafficCompetitionResponse(competition=competition)
+
+
+@app.get(
+    "/api/v1/traffic-competitions/{competition_id}",
+    response_model=TrafficCompetitionResponse,
+    responses={404: {"model": ErrorResponse}},
+    tags=["competitions"],
+    summary="Consultar competição entre empresas viárias",
+)
+def traffic_competition_status(competition_id: str) -> TrafficCompetitionResponse:
+    try:
+        return TrafficCompetitionResponse(competition=get_traffic_competition(competition_id))
+    except SimulationNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Competição não encontrada.") from exc

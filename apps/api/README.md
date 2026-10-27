@@ -34,7 +34,8 @@ limitações do benchmark sintético.
 Rotas: `/api/v1/health`, `/api/v1/cities/aurora-base-v1`,
 `/api/v1/cities/aurora-base-v1/map`, `POST /api/v1/simulations` e
 `GET /api/v1/simulations/{simulation_id}`, `POST /api/v1/comparisons` e
-`GET /api/v1/comparisons/{comparison_id}`. Jobs ficam em memória neste MVP
+`GET /api/v1/comparisons/{comparison_id}`, `POST /api/v1/traffic-competitions`
+e `GET /api/v1/traffic-competitions/{competition_id}`. Jobs ficam em memória neste MVP
 local e se perdem quando a API reinicia. Simulações e comparações rodam em
 background após a resposta HTTP; ainda não há fila externa, persistência ou
 rota de cancelamento.
@@ -64,5 +65,16 @@ uma transição que atravessa o controlador alterado, `route_exposure` será
 transição pelo nó. Arquivo ausente, malformado ou incompleto retorna
 `route_exposure: "unknown"`; esses estados também são explicados nos avisos por
 cenário.
+
+## Competição entre empresas viárias
+
+`POST /api/v1/traffic-competitions` recebe cidade, janela, semente e limite de
+escoamento. A API executa uma referência-base e cinco perfis fixos de
+temporização para `node:02:04`; as execuções usam o mesmo snapshot, demanda,
+semente, ciclo de 66 s e versão do SUMO. Consulte o `competition_id` retornado
+em `GET /api/v1/traffic-competitions/{competition_id}`. O resultado expõe cada
+empresa e seus deltas contra a base. Se uma das seis execuções falhar, métricas
+parciais não são publicadas. A competição ainda não simula orçamento, obras,
+manutenção ou intervenções em múltiplos tipos de via.
 O mapa usa `LocalFeatureCollection` em coordenadas cartesianas locais métricas,
 nunca GeoJSON RFC 7946.
