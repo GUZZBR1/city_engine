@@ -12,6 +12,7 @@ dependencies = [
   "pydantic>=2.8,<3",
   "urban-arena>=0.1,<1",
   "urban-simulation>=0.1,<1",
+  "urban-traffic-observations>=0.1,<1",
   "uvicorn[standard]>=0.30,<1",
 ]
 
@@ -22,3 +23,4 @@ include = ["app*"]
 [tool.uv.sources]
 urban-arena = { path = "../../packages/urban_arena", editable = true }
 urban-simulation = { path = "../../packages/simulation", editable = true }
+urban-traffic-observations = { path = "../../packages/traffic_observations", editable = true }

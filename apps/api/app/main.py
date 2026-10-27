@@ -36,6 +36,7 @@ from .simulation_jobs import (
     get_traffic_competition,
     run_traffic_competition,
 )
+from .traffic_replays import router as traffic_replays_router
 
 
 def _local_cors_origin() -> str:
@@ -66,6 +67,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+app.include_router(traffic_replays_router)
 
 
 @app.get("/api/v1/health", response_model=HealthResponse, tags=["health"])

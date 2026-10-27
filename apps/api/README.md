@@ -78,3 +78,22 @@ parciais não são publicadas. A competição ainda não simula orçamento, obra
 manutenção ou intervenções em múltiplos tipos de via.
 O mapa usa `LocalFeatureCollection` em coordenadas cartesianas locais métricas,
 nunca GeoJSON RFC 7946.
+
+## Replay de observações de tráfego
+
+O pacote `packages/traffic_observations` oferece um contrato e adapter
+independentes de framework. A API adiciona `POST /api/v1/traffic-replays`,
+`GET /api/v1/traffic-replays/{replay_id}`, `GET
+/api/v1/traffic-replays/{replay_id}/state` e `POST
+/api/v1/traffic-replays/{replay_id}/controls` (`pause`, `resume`, `reset`,
+`step`, `set_speed`). O replay só expõe um overlay por sessão; não modifica o
+`CitySnapshot` sintético nem envia observações ao SUMO.
+
+O único adapter atual lê o CSV `traffic_sensor_data.csv` do dataset Smart City
+Traffic Flow Prediction, descrito pelo publicador como simulado/“real-world-
+inspired” e sem proveniência observacional rastreável. Baixe o arquivo com o
+Kaggle CLI para `data/external/smart-city-traffic/` e configure
+`CITY_ENGINE_TRAFFIC_DATA_DIR` se usar outro diretório. Dados externos não são
+versionados. A criação do replay retorna `503` quando o CSV não está disponível.
+Para detalhes sobre os quatro datasets auditados e os limites científicos, veja
+`docs/datasets/traffic-observation-mvp.md`.
