@@ -34,14 +34,33 @@ limitações do benchmark sintético.
 Rotas: `/api/v1/health`, `/api/v1/cities/aurora-base-v1`,
 `/api/v1/cities/aurora-base-v1/map`, `POST /api/v1/simulations` e
 `GET /api/v1/simulations/{simulation_id}`, `POST /api/v1/comparisons` e
-`GET /api/v1/comparisons/{comparison_id}`. Jobs ficam em memória neste MVP
+`GET /api/v1/comparisons/{comparison_id}`, `POST /api/v1/arenas` e
+`GET /api/v1/arenas/{arena_id}`. Jobs ficam em memória neste MVP
 local e se perdem quando a API reinicia. Simulações e comparações rodam em
-background após a resposta HTTP; ainda não há fila externa, persistência ou
-rota de cancelamento.
+background após a resposta HTTP; arenas executam em `BackgroundTasks` também.
+Ainda não há fila externa, persistência ou rota de cancelamento.
 O POST aceita `drain_limit_seconds` (inteiro entre 0 e 604800; padrão 3600),
 que limita o tempo adicional para veículos solicitados terminarem após a janela
 de demanda. O job retorna solicitadas, concluídas e não concluídas sem recalcular
 as métricas do motor.
+
+`POST /api/v1/arenas` cria um job anual para Aurora sintética. `horizon_rounds`
+aceita inteiros entre 1 e 10 (padrão 10); `GET /api/v1/arenas/{arena_id}`
+retorna o status, o manifesto, as cinco instâncias e os resultados das rodadas
+com detalhes completamente serializados. `committed_rounds` conta confirmações
+do motor; `completed_rounds` conta rodadas publicadas em `rounds`. Se a
+serialização falhar após a confirmação, o job fica `failed`, mantém os hashes e
+índices das cinco instâncias confirmadas, deixa `current_state` nulo se o estado
+completo não pôde ser convertido e não publica detalhes parciais. Cada execução
+usa cinco políticas de referência determinísticas e não produz ranking
+agregado. A falha é retornada como job `failed` com código e mensagem,
+preservando detalhes apenas das rodadas serializadas integralmente.
+
+Jobs de simulação, comparação e Arena usam memória do processo e
+`BackgroundTasks`; reiniciar a API perde os jobs. Não há fila externa,
+persistência durável nem rota de cancelamento. A execução da Arena calcula os
+modelos anuais de referência; não executa SUMO por conta própria nem anualiza
+métricas de janelas de mobilidade.
 
 Uma comparação aceita os mesmos parâmetros da simulação e uma intervenção
 declarativa. O exemplo de Aurora mantém o ciclo em 66 s e altera somente as
