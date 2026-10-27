@@ -43,6 +43,15 @@ que limita o tempo adicional para veículos solicitados terminarem após a janel
 de demanda. O job retorna solicitadas, concluídas e não concluídas sem recalcular
 as métricas do motor.
 
+O resultado permanece restrito à janela solicitada. A API não replica essas
+métricas para uma escala anual. A integração com uma rodada anual ainda depende
+de um ponto de chamada acordado pelo runner; até lá, o pacote `simulation`
+expõe o contrato existente `run_simulation(inputs=..., window_id=..., ...)` e retorna
+`SimulationResult` por janela. O job HTTP atual não recebe estado candidato ou
+ação do motor anual e, portanto, não substitui esse handoff futuro.
+O ponto de integração proposto está registrado em
+[`dependencia-integracao-mobilidade-motor-anual-v1.md`](../../docs/arquitetura/dependencia-integracao-mobilidade-motor-anual-v1.md).
+
 Uma comparação aceita os mesmos parâmetros da simulação e uma intervenção
 declarativa. O exemplo de Aurora mantém o ciclo em 66 s e altera somente as
 durações do controlador `node:02:04`, que é alcançado por rotas do pico da manhã:

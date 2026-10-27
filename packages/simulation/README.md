@@ -148,3 +148,24 @@ TripInfo and queue output. It never enables `--random`. Each phase gives green
 to connections aligned with its configured axis; this is a synthetic fixed-
 time benchmark plan, not a conflict-reviewed or calibrated traffic plan. See
 https://sumo.dlr.de/docs/Simulation/Traffic_Lights.html.
+
+## Annual-engine integration boundary
+
+The annual engine may request mobility only for a configured simulation window.
+Its caller must provide the window-specific `SimulationInput` and pass the same
+`inputs.window.id` as `window_id` to `run_simulation()`. An optional approved
+signal change uses the existing `SignalTimingIntervention` argument. The package
+returns the existing `SimulationResult`, whose metrics describe that one
+window; callers must preserve its window identity and must not scale, repeat,
+or otherwise annualize those metrics. The annual transition and annual
+indicators remain owned by the annual-engine package.
+
+This checkout does not yet contain the annual round runner or a shared
+annual-to-mobility job handoff. The dependency for that integration is for the
+runner to invoke this existing Python boundary with its configured-window
+input, seed, limits, and optional signal intervention, then retain the returned
+window result as window-scoped evidence. No second mobility request or result
+schema is introduced here. The API's current HTTP job accepts the configured
+Aurora base snapshot and window; it cannot yet enqueue an annual candidate
+state or action. That API handoff depends on the annual runner and coordinator
+agreeing where to invoke the existing simulation contract.
