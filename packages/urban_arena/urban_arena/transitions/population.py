@@ -13,7 +13,7 @@ from ..state import (
     EffectiveEvent,
     canonical_hash,
 )
-from . import (
+from ._shared import (
     _decimal,
     _integer,
     _round_half_up,

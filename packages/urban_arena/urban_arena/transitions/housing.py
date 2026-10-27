@@ -14,7 +14,7 @@ from ..state import (
     allocate_housing_stock,
     canonical_hash,
 )
-from . import (
+from ._shared import (
     _decimal,
     _integer,
     _largest_remainder,
