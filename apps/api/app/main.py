@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 from fastapi import BackgroundTasks, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
+from .arena_jobs import ArenaNotFoundError, create_arena, get_arena, run_arena
+from .arena_schemas import ArenaRequest, ArenaResponse
 from .city_provider import (
     CityNotFoundError,
     SnapshotUnavailableError,
@@ -21,15 +23,15 @@ from .schemas import (
     SimulationResponse,
 )
 from .simulation_jobs import (
-    SimulationNotFoundError,
     InvalidComparisonScenario,
+    SimulationNotFoundError,
     UnknownSimulationWindowError,
-    create_job,
-    get_job,
-    run_job,
     create_comparison,
+    create_job,
     get_comparison,
+    get_job,
     run_comparison,
+    run_job,
 )
 
 
@@ -169,3 +171,40 @@ def comparison_status(comparison_id: str) -> ComparisonResponse:
         return ComparisonResponse(comparison=get_comparison(comparison_id))
     except SimulationNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Comparação não encontrada.") from exc
+
+
+@app.post(
+    "/api/v1/arenas",
+    response_model=ArenaResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={500: {"model": ErrorResponse}},
+    tags=["arenas"],
+    summary="Criar arena anual sintética Aurora",
+)
+def start_arena(
+    request: ArenaRequest,
+    background_tasks: BackgroundTasks,
+) -> ArenaResponse:
+    try:
+        arena = create_arena(request)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Não foi possível preparar a arena sintética Aurora.",
+        ) from exc
+    background_tasks.add_task(run_arena, arena.arena_id)
+    return ArenaResponse(arena=arena)
+
+
+@app.get(
+    "/api/v1/arenas/{arena_id}",
+    response_model=ArenaResponse,
+    responses={404: {"model": ErrorResponse}},
+    tags=["arenas"],
+    summary="Consultar status e rodadas confirmadas da arena",
+)
+def arena_status(arena_id: str) -> ArenaResponse:
+    try:
+        return ArenaResponse(arena=get_arena(arena_id))
+    except ArenaNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Arena não encontrada.") from exc
