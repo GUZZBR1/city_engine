@@ -51,16 +51,23 @@ com detalhes completamente serializados. `committed_rounds` conta confirmações
 do motor; `completed_rounds` conta rodadas publicadas em `rounds`. Se a
 serialização falhar após a confirmação, o job fica `failed`, mantém os hashes e
 índices das cinco instâncias confirmadas, deixa `current_state` nulo se o estado
-completo não pôde ser convertido e não publica detalhes parciais. Cada execução
-usa cinco políticas de referência determinísticas e não produz ranking
-agregado. A falha é retornada como job `failed` com código e mensagem,
+completo não pôde ser convertido e não publica detalhes parciais. Quando `sumo`
+e `netconvert` estão disponíveis no `PATH` do processo da API, cada execução
+compara uma política-base sem ações com quatro políticas semafóricas
+determinísticas de benchmark. A ação aceita executa comparação pareada na janela
+`weekday_am_peak`, com mesmo snapshot, demanda, semente 42 e limites. A evidência
+`action_execution_evidence` permanece escopada à janela SUMO e não altera nem é
+anualizada nos indicadores urbanos. As heurísticas são estratégias fixas, não
+agentes IA treinados. Sem os binários, a Arena usa cinco políticas de referência
+sem ações. Nenhum modo produz ranking agregado. A falha é retornada como job `failed` com código e mensagem,
 preservando detalhes apenas das rodadas serializadas integralmente.
 
 Jobs de simulação, comparação e Arena usam memória do processo e
 `BackgroundTasks`; reiniciar a API perde os jobs. Não há fila externa,
 persistência durável nem rota de cancelamento. A execução da Arena calcula os
-modelos anuais de referência; não executa SUMO por conta própria nem anualiza
-métricas de janelas de mobilidade.
+modelos anuais de referência e, quando os binários estão disponíveis, executa
+comparações SUMO de janela para ações semafóricas aceitas. Essa saída não
+representa tráfego observado, validação empírica ou resultado anual.
 
 Uma comparação aceita os mesmos parâmetros da simulação e uma intervenção
 declarativa. O exemplo de Aurora mantém o ciclo em 66 s e altera somente as

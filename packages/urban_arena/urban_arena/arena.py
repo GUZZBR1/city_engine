@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .actions import ActionProposal
+from .actions import ActionCatalog, ActionProposal, SignalTarget
 from .indicators import IndicatorValue
 from .manifest import ExperimentManifest, build_aurora_synthetic_v1_manifest
 from .models import CityConfigFile, CitySnapshot
@@ -17,7 +17,7 @@ from .repository import (
     RepositoryConflictError,
     RoundRecord,
 )
-from .round_engine import AnnualRoundEngine
+from .round_engine import ActionExecutor, AnnualRoundEngine
 from .state import CityState, StateFactory
 
 INSTANCE_COUNT = 5
@@ -53,6 +53,9 @@ class ArenaRunner:
         experiment_id: str | None = None,
         *,
         manifest: ExperimentManifest | None = None,
+        catalog: ActionCatalog | None = None,
+        signal_targets: Sequence[SignalTarget] = (),
+        action_executor: ActionExecutor | None = None,
     ) -> None:
         if manifest is None:
             if not experiment_id:
@@ -80,7 +83,13 @@ class ArenaRunner:
             instance_ids=list(self._instance_ids),
         )
         self.repository = InMemoryRoundRepository(initial_states)
-        self.round_engine = AnnualRoundEngine(manifest)
+        engine_options = {
+            "signal_targets": signal_targets,
+            "action_executor": action_executor,
+        }
+        if catalog is not None:
+            engine_options["catalog"] = catalog
+        self.round_engine = AnnualRoundEngine(manifest, **engine_options)
         self._instances = tuple(
             ArenaInstance(
                 experiment_id=self.experiment_id,

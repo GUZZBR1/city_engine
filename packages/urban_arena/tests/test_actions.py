@@ -1,11 +1,11 @@
 import pytest
-import urban_arena.actions as actions_module
 from pydantic import ValidationError
 from urban_arena.actions import (
     ActionCatalog,
     ActionDefinition,
     ActionProposal,
     ArbitrationContext,
+    DEFAULT_ACTION_CATALOG,
     ProposedAction,
     SignalTarget,
     arbitrate_proposal,
@@ -103,7 +103,7 @@ def test_proposal_contract_is_strict_and_agent_cost_is_only_annotation() -> None
         context(existing_signal()),
     )
     assert not decision.accepted
-    assert decision.actions[0].code == "annual_runtime_integration_incomplete"
+    assert decision.actions[0].code == "signal_execution_adapter_not_configured"
     assert decision.budget is None
 
     distinct_idempotency_key = proposal(signal_action()).model_copy(
@@ -151,8 +151,7 @@ def test_empty_proposal_is_no_action_and_budget_request_does_not_change_budget()
     assert result.budget.rounds[0].available_cs == 26
 
 
-def test_signal_phase_validation_rejects_missing_target_and_changed_cycle(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(actions_module, "_SIGNAL_RUNTIME_INTEGRATED", True)
+def test_signal_phase_validation_rejects_missing_target_and_changed_cycle() -> None:
     missing = arbitrate_proposal(proposal(signal_action()), context(), catalog=enabled_signal_catalog())
     assert not missing.accepted
     assert missing.actions[0].code == "target_unavailable"
@@ -177,8 +176,7 @@ def test_signal_phase_validation_rejects_missing_target_and_changed_cycle(monkey
     assert result.actions[0].code == "invalid_cycle_duration"
 
 
-def test_signal_action_cost_is_server_calculated_and_package_is_atomic(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(actions_module, "_SIGNAL_RUNTIME_INTEGRATED", True)
+def test_signal_action_cost_is_server_calculated_and_package_is_atomic() -> None:
     result = arbitrate_proposal(
         proposal(signal_action(), budget_request=0),
         context(existing_signal()),
@@ -201,15 +199,24 @@ def test_signal_action_cost_is_server_calculated_and_package_is_atomic(monkeypat
     assert conflict.budget is None
 
 
-def test_custom_catalog_cannot_enable_signal_without_annual_runtime() -> None:
+def test_custom_catalog_enables_signal_only_with_valid_target() -> None:
+    assert not DEFAULT_ACTION_CATALOG.get("signal_timing_change").enabled
     result = arbitrate_proposal(
         proposal(signal_action()),
-        context(existing_signal()),
+        context(),
         catalog=enabled_signal_catalog(),
     )
 
     assert not result.accepted
-    assert result.actions[0].code == "annual_runtime_integration_incomplete"
+    assert result.actions[0].code == "target_unavailable"
+
+    accepted = arbitrate_proposal(
+        proposal(signal_action()),
+        context(existing_signal()),
+        catalog=enabled_signal_catalog(),
+    )
+    assert accepted.accepted
+    assert accepted.actions[0].accepted
 
 
 def test_proposal_identity_must_match_frozen_observation() -> None:

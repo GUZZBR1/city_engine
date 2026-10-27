@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import Field, StrictInt, model_validator
+from pydantic import Field, JsonValue, StrictInt, model_validator
 
 from .budget import BudgetAssessment, BudgetCharge, BudgetEnvelope, assess_budget
 from .models import StrictModel
@@ -14,10 +14,6 @@ ActionType = Literal[
     "housing_add_units",
     "service_capacity_contract",
 ]
-
-# No annual orchestrator or action adapter exists in this package yet.
-_SIGNAL_RUNTIME_INTEGRATED = False
-
 
 class SignalPhaseProposal(StrictModel):
     movement: Literal["north_south", "all_red", "east_west"]
@@ -127,7 +123,7 @@ DEFAULT_ACTION_CATALOG = ActionCatalog(
     actions=(
         ActionDefinition(
             action_type="signal_timing_change",
-            unavailable_reason="annual_runtime_integration_incomplete",
+            unavailable_reason="signal_execution_adapter_not_configured",
             setup_cost_cs=2,
             operation_cost_cs=1,
         ),
@@ -192,6 +188,23 @@ class ArbitrationDecision(StrictModel):
     code: str
     actions: tuple[ActionReceipt, ...]
     budget: BudgetAssessment | None = None
+
+
+class ActionExecutionEvidence(StrictModel):
+    """Serializable evidence returned by an injected action adapter."""
+
+    executor_id: str = Field(min_length=1)
+    evidence_type: str = Field(min_length=1)
+    action_ids: tuple[str, ...] = Field(min_length=1)
+    details: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_action_ids(self) -> ActionExecutionEvidence:
+        if any(not action_id.strip() for action_id in self.action_ids):
+            raise ValueError("action_ids não pode conter valores vazios")
+        if len(self.action_ids) != len(set(self.action_ids)):
+            raise ValueError("action_ids deve ser único")
+        return self
 
 
 def _validate_signal_action(
@@ -280,15 +293,6 @@ def arbitrate_proposal(
     charge_lines: list[BudgetCharge] = []
     for action in proposal.actions:
         definition = catalog.get(action.action_type)
-        if action.action_type == "signal_timing_change" and not _SIGNAL_RUNTIME_INTEGRATED:
-            receipts.append(ActionReceipt(
-                action_id=action.action_id,
-                action_type=action.action_type,
-                accepted=False,
-                code="annual_runtime_integration_incomplete",
-                message="a ação semafórica não está conectada ao runtime anual",
-            ))
-            continue
         if not definition.enabled:
             receipts.append(ActionReceipt(
                 action_id=action.action_id,

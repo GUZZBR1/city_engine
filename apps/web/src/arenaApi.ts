@@ -22,7 +22,15 @@ export interface ArenaRoundInstanceDTO {
   indicators: ArenaIndicatorDTO[];
   proposal: ArenaJsonObject;
   decision: ArenaJsonObject;
-  [key: string]: ArenaJsonValue;
+  /** Optional for compatibility with round records produced before SUMO evidence existed. */
+  action_execution_evidence?: ArenaActionExecutionEvidenceDTO | null;
+}
+
+export interface ArenaActionExecutionEvidenceDTO {
+  executor_id: string;
+  evidence_type: string;
+  action_ids: string[];
+  details: ArenaJsonObject;
 }
 
 export interface ArenaRoundDTO {
@@ -137,6 +145,30 @@ function validateActionReceipt(value: unknown): void {
       (value.effective_round !== null && !Number.isInteger(value.effective_round)) || (value.conflict_key !== null && typeof value.conflict_key !== 'string')) throw contractError('action receipt incompleto');
 }
 
+function parseActionExecutionEvidence(value: unknown): ArenaActionExecutionEvidenceDTO | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (!isRecord(value)) throw contractError('action_execution_evidence deve ser objeto ou null');
+  requireString(value.executor_id, 'action_execution_evidence.executor_id');
+  requireString(value.evidence_type, 'action_execution_evidence.evidence_type');
+  requireStringArray(value.action_ids, 'action_execution_evidence.action_ids');
+  if (!isRecord(value.details)) throw contractError('action_execution_evidence.details deve ser objeto');
+  const details = value.details;
+  for (const key of ['scope', 'provenance', 'city_id', 'snapshot_id', 'snapshot_hash', 'window_id', 'engine', 'engine_version', 'base_simulation_id', 'intervention_simulation_id']) {
+    requireString(details[key], `action_execution_evidence.details.${key}`);
+  }
+  if (!['exposed', 'not_exposed', 'unknown'].includes(String(details.route_exposure))) throw contractError('action_execution_evidence.details.route_exposure inválido');
+  requireInteger(details.seed, 'action_execution_evidence.details.seed', 0, Number.MAX_SAFE_INTEGER);
+  for (const key of ['base_metrics', 'intervention_metrics', 'deltas']) {
+    if (!isRecord(details[key])) throw contractError(`action_execution_evidence.details.${key} deve ser objeto`);
+    for (const metric of ['trips_requested', 'trips_completed', 'trips_not_completed', 'mean_travel_time_seconds', 'mean_speed_kmh', 'mean_queue_length_meters']) {
+      requireNullableNumber(details[key][metric], `action_execution_evidence.details.${key}.${metric}`);
+    }
+  }
+  requireStringArray(details.limitations, 'action_execution_evidence.details.limitations');
+  return value as unknown as ArenaActionExecutionEvidenceDTO;
+}
+
 function parseIndicator(value: unknown): ArenaIndicatorDTO {
   if (!isRecord(value) || !isRecord(value.coverage)) throw contractError('indicador ou cobertura ausente');
   const indicator = value;
@@ -207,6 +239,7 @@ function parseArena(payload: unknown): ArenaJobDTO {
       if (typeof roundRaw.instance_id !== 'string' || !instanceIds.has(roundRaw.instance_id) || roundInstanceIds.has(roundRaw.instance_id)) throw contractError('instâncias da rodada não correspondem às cinco instâncias da arena');
       roundInstanceIds.add(roundRaw.instance_id);
       if (!isRecord(roundRaw.proposal) || !isRecord(roundRaw.decision) || !Array.isArray(roundRaw.indicators)) throw contractError('detalhes da instância na rodada incompletos');
+      parseActionExecutionEvidence(roundRaw.action_execution_evidence);
       for (const key of ['schema_version', 'experiment_id', 'proposal_id', 'idempotency_key', 'agent_id', 'instance_id', 'observed_city_state_hash', 'policy_id', 'policy_version', 'proposal_record_hash']) requireString(roundRaw.proposal[key], `proposal.${key}`);
       requireInteger(roundRaw.proposal.round_index, 'proposal.round_index', 1, arena.horizon_rounds as number);
       if (roundRaw.proposal.instance_id !== roundRaw.instance_id || roundRaw.proposal.experiment_id !== arena.experiment_id || roundRaw.proposal.round_index !== raw.round_index) throw contractError('proposta não corresponde à instância/rodada publicada');

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from threading import RLock
 
-from .actions import ActionProposal, ArbitrationDecision
+from .actions import ActionExecutionEvidence, ActionProposal, ArbitrationDecision
 from .indicators import IndicatorValue
 from .state import CityState, StateTransitionResult, canonical_hash
 
@@ -59,6 +59,7 @@ class RoundRecord:
     indicator_results: tuple[IndicatorValue, ...]
     state_transition: StateTransitionResult
     observed_city_state_hash: str
+    action_execution_evidence: ActionExecutionEvidence | None = None
     diagnostics: tuple[str, ...] = ()
 
     @property
@@ -69,6 +70,11 @@ class RoundRecord:
             "indicator_results": [value.model_dump(mode="json") for value in self.indicator_results],
             "state_transition": self.state_transition.model_dump(mode="json"),
             "observed_city_state_hash": self.observed_city_state_hash,
+            "action_execution_evidence": (
+                self.action_execution_evidence.model_dump(mode="json")
+                if self.action_execution_evidence is not None
+                else None
+            ),
             "diagnostics": list(self.diagnostics),
         })
 

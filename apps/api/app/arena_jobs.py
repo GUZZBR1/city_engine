@@ -3,19 +3,32 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from dataclasses import dataclass
 from threading import RLock
 from uuid import uuid4
 
-from urban_arena.actions import ActionReceipt, ProposedAction
+from simulation import load_aurora_input
+from urban_arena.actions import (
+    DEFAULT_ACTION_CATALOG,
+    ActionCatalog,
+    ActionReceipt,
+    ProposedAction,
+    SignalTarget,
+)
 from urban_arena.arena import ArenaInstance, ArenaRunner, ParticipantFailure
 from urban_arena.budget import BudgetAssessment, BudgetCharge
 from urban_arena.indicators import IndicatorValue
 from urban_arena.manifest import ExperimentManifest, build_aurora_synthetic_v1_manifest
-from urban_arena.policies import DeterministicReferencePolicy
+from urban_arena.policies import (
+    AgentPolicy,
+    DeterministicReferencePolicy,
+    FixedSignalTimingPolicy,
+)
 from urban_arena.repository import RoundRecord
 from urban_arena.state import CityState, EffectiveEvent, ServiceDomainState
 
+from .arena_mobility import ArenaSignalSumoEvaluator
 from .arena_schemas import (
     ArenaActionReceiptDTO,
     ArenaBudgetAssessmentDTO,
@@ -53,7 +66,7 @@ class ArenaNotFoundError(LookupError):
 class _ArenaRecord:
     job: ArenaJob
     runner: ArenaRunner
-    policies: tuple[DeterministicReferencePolicy, ...]
+    policies: tuple[AgentPolicy, ...]
 
 
 _jobs: dict[str, _ArenaRecord] = {}
@@ -71,14 +84,74 @@ def create_arena(request: ArenaRequest) -> ArenaJob:
         experiment_id=experiment_id,
         horizon_rounds=request.horizon_rounds,
     )
-    runner = ArenaRunner(snapshot, manifest=manifest)
-    policies = tuple(
-        DeterministicReferencePolicy(
-            agent_id=f"reference-agent-{index:02d}",
-            policy_id=f"deterministic-reference-{index:02d}",
+    runner_options: dict[str, object] = {}
+    sumo_available = bool(shutil.which("sumo") and shutil.which("netconvert"))
+    if sumo_available:
+        mobility_input = load_aurora_input(snapshot.city_id, "weekday_am_peak")
+        if mobility_input.snapshot_hash != snapshot.hash:
+            raise ValueError("entrada SUMO e snapshot anual devem ter o mesmo hash")
+        signal_targets = tuple(
+            SignalTarget(
+                node_id=signal.node_id,
+                phases=tuple(
+                    {"movement": phase.movement, "duration_s": phase.duration_seconds}
+                    for phase in signal.phases
+                ),
+            )
+            for signal in mobility_input.traffic_signals
         )
-        for index in range(1, 6)
-    )
+        catalog = ActionCatalog(actions=tuple(
+            item.model_copy(update={"enabled": True, "unavailable_reason": None})
+            if item.action_type == "signal_timing_change"
+            else item
+            for item in DEFAULT_ACTION_CATALOG.actions
+        ))
+        runner_options = {
+            "catalog": catalog,
+            "signal_targets": signal_targets,
+            "action_executor": ArenaSignalSumoEvaluator(mobility_input),
+        }
+    runner = ArenaRunner(snapshot, manifest=manifest, **runner_options)
+    if sumo_available:
+        ns_priority = (("north_south", 40), ("all_red", 3), ("east_west", 20), ("all_red", 3))
+        ew_priority = (("north_south", 30), ("all_red", 3), ("east_west", 30), ("all_red", 3))
+        policies: tuple[AgentPolicy, ...] = (
+            DeterministicReferencePolicy(
+                agent_id="baseline-no-action",
+                policy_id="baseline-no-action-v1",
+            ),
+            FixedSignalTimingPolicy(
+                agent_id="signal-ns-node-0200",
+                policy_id="heuristic-ns-node-0200-v1",
+                signal_changes=(("node:02:00", ns_priority),),
+            ),
+            FixedSignalTimingPolicy(
+                agent_id="signal-ew-node-0200",
+                policy_id="heuristic-ew-node-0200-v1",
+                signal_changes=(("node:02:00", ew_priority),),
+            ),
+            FixedSignalTimingPolicy(
+                agent_id="signal-ns-node-0204",
+                policy_id="heuristic-ns-node-0204-v1",
+                signal_changes=(("node:02:04", ns_priority),),
+            ),
+            FixedSignalTimingPolicy(
+                agent_id="signal-coordinated-two-nodes",
+                policy_id="heuristic-coordinated-two-nodes-v1",
+                signal_changes=(
+                    ("node:02:00", ns_priority),
+                    ("node:02:04", ew_priority),
+                ),
+            ),
+        )
+    else:
+        policies = tuple(
+            DeterministicReferencePolicy(
+                agent_id=f"reference-agent-{index:02d}",
+                policy_id=f"deterministic-reference-{index:02d}",
+            )
+            for index in range(1, 6)
+        )
     arena_id = str(uuid4())
     policy_by_instance = {
         instance.instance_id: policy
@@ -436,6 +509,11 @@ def _round_instance_dto(record: RoundRecord) -> ArenaRoundInstanceDTO:
             code=decision.code,
             actions=[_action_receipt(receipt) for receipt in decision.actions],
             budget=_budget_assessment(decision.budget) if decision.budget is not None else None,
+        ),
+        action_execution_evidence=(
+            record.action_execution_evidence.model_dump(mode="json")
+            if record.action_execution_evidence is not None
+            else None
         ),
         indicators=[_indicator(indicator) for indicator in record.indicator_results],
         observed_city_state_hash=record.observed_city_state_hash,

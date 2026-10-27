@@ -67,5 +67,17 @@
 .arena-hash-list code,.arena-manifest-grid code{white-space:normal;overflow-wrap:anywhere}
 .arena-manifest-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:1px;margin:0;padding:1px;background:#e5e6df}
 .arena-manifest-grid div{padding:11px;background:#fffefa}
+.arena-action-evidence{margin-top:19px;padding:14px;border:1px solid #d7e2d9;border-radius:5px;background:#f7faf6}
+.arena-evidence-note{margin:0 0 12px;color:#765632;font-size:11px;line-height:1.55}
+.arena-evidence-card{margin-top:10px;padding:12px;border:1px solid #e2e8e0;border-radius:4px;background:#fffefa}
+.arena-evidence-card h4{margin:0;color:#3d5548;font-size:12px}
+.arena-evidence-card h4 small{color:#808a83;font-weight:400}
+.arena-evidence-meta,.arena-evidence-actions{margin:6px 0;color:#68736c;font-size:10px;line-height:1.5}
+.arena-evidence-card table{margin-top:8px}
+.arena-evidence-hashes{display:flex;gap:18px;flex-wrap:wrap;margin:10px 0 0}
+.arena-evidence-hashes div{display:grid;gap:4px;min-width:0}
+.arena-evidence-hashes dt{color:#89928c;font-size:9px}
+.arena-evidence-hashes dd{margin:0;color:#5f6a63;font:10px 'DM Mono',monospace;overflow-wrap:anywhere}
+.arena-evidence-hashes code{white-space:normal;overflow-wrap:anywhere}
 @media(max-width:720px){.arena-panel{padding:18px}.arena-panel-heading{flex-direction:column;gap:12px}.arena-synthetic-label{align-self:flex-start}.arena-id{max-width:42%}}
 @media(max-width:440px){.arena-panel{padding:15px}.arena-status-block{padding:11px}.arena-counts{gap:8px 15px}.arena-instance-list{grid-template-columns:1fr}}

@@ -21,6 +21,7 @@ from simulation import (
     run_simulation,
 )
 from simulation.compiler import sumo_identifier
+from simulation.engine import apply_signal_timing_interventions
 
 
 def sample_input() -> SimulationInput:
@@ -163,6 +164,110 @@ def test_timing_intervention_changes_only_declared_signal_durations():
     assert changed_signals["node:02:00"].offset_seconds == base_signals["node:02:00"].offset_seconds
     assert changed_signals["node:02:00"].initial_phase_index == base_signals["node:02:00"].initial_phase_index
     assert changed_signals["node:02:04"] == base_signals["node:02:04"]
+
+
+def test_timing_intervention_package_changes_two_signals_and_preserves_other_inputs():
+    base = load_aurora_input("aurora-base-v1", "weekday_am_peak")
+    interventions = (
+        aurora_intervention(),
+        SignalTimingIntervention(
+            node_id="node:02:04",
+            phases=tuple(
+                SignalTimingPhase(movement=movement, duration_seconds=duration)
+                for movement, duration in zip(
+                    ("north_south", "all_red", "east_west", "all_red"),
+                    (35, 3, 25, 3),
+                )
+            ),
+        ),
+    )
+
+    changed = apply_signal_timing_interventions(base, interventions)
+    base_signals = {signal.node_id: signal for signal in base.traffic_signals}
+    changed_signals = {signal.node_id: signal for signal in changed.traffic_signals}
+
+    assert [phase.duration_seconds for phase in changed_signals["node:02:00"].phases] == [40, 3, 20, 3]
+    assert [phase.duration_seconds for phase in changed_signals["node:02:04"].phases] == [35, 3, 25, 3]
+    assert changed_signals["node:02:00"].offset_seconds == base_signals["node:02:00"].offset_seconds
+    assert changed_signals["node:02:04"].program_id == base_signals["node:02:04"].program_id
+    assert changed.city_id == base.city_id
+    assert changed.window == base.window
+    assert changed.nodes == base.nodes
+    assert changed.edges == base.edges
+    assert changed.trips == base.trips
+    assert changed.warnings == base.warnings
+    assert base.traffic_signals == tuple(base_signals.values())
+
+
+def test_timing_intervention_package_rejects_duplicate_targets():
+    intervention = aurora_intervention()
+    with pytest.raises(SimulationError, match="mesmo nó"):
+        apply_signal_timing_interventions(
+            load_aurora_input("aurora-base-v1", "weekday_am_peak"),
+            (intervention, intervention),
+        )
+
+
+def test_timing_intervention_package_rejects_more_than_two_changes():
+    intervention = aurora_intervention()
+    with pytest.raises(SimulationError, match="no máximo duas"):
+        apply_signal_timing_interventions(
+            load_aurora_input("aurora-base-v1", "weekday_am_peak"),
+            (intervention, intervention.model_copy(update={"node_id": "node:02:04"}),
+             intervention.model_copy(update={"node_id": "node:99:99"})),
+        )
+
+
+def test_timing_intervention_package_rejects_node_without_signal():
+    intervention = SignalTimingIntervention(
+        node_id="b",
+        phases=aurora_intervention().phases,
+    )
+    with pytest.raises(SimulationError, match="não possui controlador"):
+        apply_signal_timing_interventions(sample_input(), (intervention,))
+
+
+def test_timing_intervention_package_validates_every_change_before_applying():
+    base = load_aurora_input("aurora-base-v1", "weekday_am_peak")
+    valid = aurora_intervention()
+    invalid = SignalTimingIntervention(
+        node_id="node:02:04",
+        phases=aurora_intervention(durations=(41, 3, 20, 3)).phases,
+    )
+
+    with pytest.raises(SimulationError, match="ciclo total"):
+        apply_signal_timing_interventions(base, (valid, invalid))
+    assert [phase.duration_seconds for phase in base.traffic_signals[0].phases] == [35, 3, 25, 3]
+
+
+def test_run_simulation_keeps_singular_argument_and_accepts_package():
+    class CapturingEngine:
+        def __init__(self):
+            self.inputs = None
+
+        def run(self, inputs, *, seed, limits):
+            self.inputs = inputs
+            return inputs
+
+    base = load_aurora_input("aurora-base-v1", "weekday_am_peak")
+    intervention = aurora_intervention()
+    singular_engine = CapturingEngine()
+    singular_result = run_simulation(
+        inputs=base,
+        engine=singular_engine,
+        signal_timing_intervention=intervention,
+    )
+    assert singular_result is singular_engine.inputs
+    assert [phase.duration_seconds for phase in singular_result.traffic_signals[0].phases] == [40, 3, 20, 3]
+
+    package_engine = CapturingEngine()
+    package_result = run_simulation(
+        inputs=base,
+        engine=package_engine,
+        signal_timing_interventions=(intervention,),
+    )
+    assert package_result is package_engine.inputs
+    assert [phase.duration_seconds for phase in package_result.traffic_signals[0].phases] == [40, 3, 20, 3]
 
 
 @pytest.mark.parametrize("intervention, message", [

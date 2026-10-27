@@ -23,6 +23,14 @@ function makeJob(overrides: Record<string, unknown> = {}): ArenaJobDTO {
     initial_city_state_hash: 'initial-state', current_city_state_hash: 'city-state', current_round_index: 1,
     current_state: state(instance_id),
   }));
+  const evidence = {
+    executor_id: 'sumo-arena-signal-v1', evidence_type: 'paired_sumo_window_comparison', action_ids: ['signal-action-1'],
+    details: { scope: 'simulation_window', provenance: 'synthetic', city_id: 'aurora-base-v1', snapshot_id: 'snapshot-1', snapshot_hash: 'snapshot-hash',
+      window_id: 'weekday-am', route_exposure: 'exposed', seed: 42, engine: 'sumo', engine_version: '1.20', base_simulation_id: 'base-run', intervention_simulation_id: 'action-run',
+      base_metrics: { trips_requested: 10, trips_completed: 8, trips_not_completed: 2, mean_travel_time_seconds: 120, mean_speed_kmh: 24, mean_queue_length_meters: 8 },
+      intervention_metrics: { trips_requested: 10, trips_completed: 9, trips_not_completed: 1, mean_travel_time_seconds: 110, mean_speed_kmh: 26, mean_queue_length_meters: 6 },
+      deltas: { trips_requested: 0, trips_completed: 1, trips_not_completed: -1, mean_travel_time_seconds: -10, mean_speed_kmh: 2, mean_queue_length_meters: -2 }, limitations: ['synthetic'] },
+  };
   const rounds = [{ round_index: 1, instances: ids.map((instance_id) => ({
     instance_id,
     observed_city_state_hash: 'observed-state',
@@ -31,6 +39,7 @@ function makeJob(overrides: Record<string, unknown> = {}): ArenaJobDTO {
     manifest_hash: 'round-manifest',
     round_record_hash: 'round-record',
     decision: { decision: 'no_action', accepted: false, code: 'no_action', proposal_id: 'proposal', idempotency_key: 'key', proposal_hash: 'proposal-hash', actions: [], budget: null },
+    ...(instance_id === 'instance-1' ? { action_execution_evidence: evidence } : {}),
     proposal: {},
     indicators: [{
       indicator_id: 'population_total', value: null, null_reason: 'source_unavailable', unit: 'pessoas', unit_basis: 'residentes',
@@ -71,6 +80,11 @@ describe('Arena view model adapter', () => {
       observedCityStateHash: 'observed-state', parentCityStateHash: 'parent-state', cityStateHash: 'city-state',
       manifestHash: 'round-manifest', roundRecordHash: 'round-record', decision: 'no_action',
       metrics: [{ id: 'population_total', label: 'population total', value: null, nullReason: 'source_unavailable', unit: 'pessoas', unitBasis: 'residentes', period: 'ano 1' }],
+    });
+    expect(result.rounds[0].instances[0].actionExecutionEvidence).toMatchObject({
+      executorId: 'sumo-arena-signal-v1', evidenceType: 'paired_sumo_window_comparison', actionIds: ['signal-action-1'],
+      windowId: 'weekday-am', routeExposure: 'exposed', seed: 42, engine: 'sumo', engineVersion: '1.20', snapshotId: 'snapshot-1', snapshotHash: 'snapshot-hash', limitations: ['synthetic'],
+      baseMetrics: { mean_travel_time_seconds: 120 }, interventionMetrics: { mean_travel_time_seconds: 110 }, deltas: { mean_travel_time_seconds: -10 },
     });
     expect(result.manifest).toMatchObject({ hash: 'manifest-hash', snapshotId: 'snapshot-1', profileId: 'reference', provenance: 'synthetic', parameters: { deterministic: true }, seeds: { base: 42 } });
   });
