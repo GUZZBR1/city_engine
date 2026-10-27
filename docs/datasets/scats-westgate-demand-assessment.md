@@ -28,7 +28,7 @@ O dicionário oficial do [recurso mensal de outubro de 2026](https://opendata.tr
 - `V00`…`V95`: volumes em 96 períodos de 15 minutos; `V00` = 00:00–00:15;
 - `NM_REGION`, `CT_RECORDS`, `QT_VOLUME_24HOUR`, `CT_ALARM_24HOUR`.
 
-O volume é número de transições de estado do detector de desativado para ativado, não uma identificação semântica de movimento. A página não documenta direção/faixa por campo. Coordenadas não estão nos registros de volume.
+O DTP documenta cada valor de `V00`–`V95` como número de transições de estado do detector de desativado para ativado. **Não equiparar automaticamente essas transições a contagens de veículos ou fluxos independentemente verificados:** isso depende da configuração do loop e do comportamento de detecção, que precisam ser validados para cada site/detector. A série registra a saída do detector, não uma identificação semântica de movimento. A página não documenta direção/faixa por campo. Coordenadas não estão nos registros de volume.
 
 ### Verificação local reproduzível
 
@@ -97,7 +97,7 @@ O caminho oficial disponível é: `NB_SCATS_SITE` ↔ `SITE_NO` para alcançar o
 
 | Claim | Evidência | Status | Permitido dizer | Limites |
 |---|---|---|---|---|
-| SCATS tem dados volumétricos de loops por site em 15 min | Página/dicionário DTP, fields `NB_SCATS_SITE`, `NB_DETECTOR`, `V00–V95` | `RESEARCH_SUPPORTED` | DTP publica contagens SCATS de detector/site em intervalos de 15 min | Não é direção ou OD por padrão |
+| SCATS publica transições de estado de loops por site em 15 min | Página/dicionário DTP, fields `NB_SCATS_SITE`, `NB_DETECTOR`, `V00–V95` | `RESEARCH_SUPPORTED` | DTP publica transições detector/site em intervalos de 15 min | Não assumir contagens de veículos/fluxos verificados sem validar configuração e detecção; não é direção ou OD por padrão |
 | Há cobertura perto dos acessos além dos TIRTL 504/505 | CSV oficial WGS84 + join ID exato ao CSV diário oficial em sites 2880/2881/2399/2886/2887/2896–2898/4901 | `RESEARCH_SUPPORTED` | Há medições SCATS em sinais nomeados dos acessos da área | Inventário e bbox não provam detector→via/movimento; locais de interseção são distintos dos sensores da ponte |
 | Operação sheets oferecem uma rota para detector→movimento | Descrição oficial e campos `Detectors`, `Signal Groups`, `Operation Notes`, `Phasing` | `RESEARCH_SUPPORTED` (capacidade declarada) | DTP publica material por site que descreve operação de detector/sinal | Não foi validado um sheet individual versus `NB_DETECTOR`/data de vigência |
 | Dados podem entrar como demanda independente agora | Mapping e horário não demonstrados | `UNVERIFIED` / negado pela evidência atual | Nenhum uso como constraint até resolver a associação | Não construir OD/rotas a partir destas contagens |
