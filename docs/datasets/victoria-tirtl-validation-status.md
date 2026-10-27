@@ -4,6 +4,12 @@
 
 **Resultado:** nenhuma baseline SUMO foi executada; não há calibração nem validação held-out.
 
+**Harness:** `packages/traffic_observations/traffic_observations/evaluation.py`
+agora contém comparação reutilizável de volume/velocidade por intervalo,
+resíduos agrupados e manifesto hashado. Nenhum artefato de avaliação foi
+gerado: métricas de baseline, treino e holdout permanecem unset. Os testes usam
+somente linhas artificiais e não são resultados de tráfego.
+
 **Decisão:** parar antes da validação principal; preservar o site 505 apenas para exploração.
 
 ## 1. Fonte e cobertura
@@ -29,6 +35,8 @@ O dicionário de sites não declara CRS, datum ou precisão das coordenadas. Tam
 
 Mesmo com executáveis instalados, os dados TIRTL são contagens pontuais, não matriz OD, rotas nem demanda de entrada. Construir demanda usando a mesma observação que será avaliada criaria circularidade. Portanto, não há comparação observado-vs-simulado defensável a reportar.
 
+Os bloqueios técnicos atuais são: (1) nenhum mapping detector→faixa foi confirmado; (2) não existe uma rede SUMO West Gate verificada no checkout; (3) não há série de saídas SUMO por detector/segmento/janela; (4) falta uma definição de demanda de fronteira independente das contagens usadas como alvo; e (5) SUMO/netconvert não estavam disponíveis na auditoria registrada acima. A implementação do harness não resolve esses bloqueios e não produziu números.
+
 | Métrica solicitada | Baseline | Calibrado no treino | Held-out |
 |---|---:|---:|---:|
 | MAE / RMSE / bias de volume | Não calculado | Não executado | Não executado |
@@ -40,7 +48,9 @@ As fórmulas planejadas são: MAE = média de `|simulado − observado|`; RMSE =
 
 ## 4. Protocolo e calibração
 
-Não foi congelado um protocolo de calibração nem escolhido calibration/held-out set. A calibração não começou. Fixar split, demanda, parâmetros e thresholds sem uma rede local válida, um mapping aceito e uma definição não circular de demanda daria aparência de rigor sem tornar o experimento identificável.
+Não foi congelado um protocolo de calibração e nenhum split foi escolhido. A calibração não começou. Fixar demanda, parâmetros e thresholds sem uma rede local válida, um mapping aceito e uma definição não circular de demanda não tornaria o experimento identificável.
+
+Para a execução futura, registrar a partição antes de examinar resultados: um período de calibração contíguo e um período posterior, temporalmente independente, como holdout intocado. Se houver cobertura, reservar também segmento/corredor espacial independente. As fronteiras devem ser atribuídas usando timestamps, IDs estáveis de segmento e metadados de cobertura, sem inspecionar valores de erro, pontuar splits candidatos ou ajustar parâmetros. Congelar split, mapping, política de medição, demanda independente, limites de parâmetros, seeds e checksums da rede antes do ajuste. Exploração de dados fica limitada a schema, timezone, cobertura, proveniência e qualidade necessária para interpretar os arquivos; registrar qualquer limitação e não usar resultados exploratórios para escolher split.
 
 Antes da próxima tentativa, o protocolo deve registrar em versão imutável: mapping confirmado, rede e checksums; período e timezone; política para classes 13/14, bin aberto `150+` e lacunas; definição independente da demanda; unidade/alinhamento por intervalo; split temporal contíguo; seeds e versões; limites de cada parâmetro; orçamento e regra de parada. A validação deve usar dias posteriores não usados em ajustes. Não se deve mudar o protocolo após observar métricas sem gerar nova versão do experimento.
 
