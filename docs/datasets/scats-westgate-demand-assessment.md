@@ -1,7 +1,7 @@
 # Avaliação delimitada: SCATS no West Gate
 
-**Data da consulta:** 2026-10-27  
-**Escopo:** somente Open Data Victoria/DTP; nenhuma rota, OD ou simulação SUMO foi criada/executada.  
+**Data da consulta:** 2026-10-27
+**Escopo:** somente Open Data Victoria/DTP; nenhuma rota, OD ou simulação SUMO foi criada/executada.
 **Decisão binária:** **SCATS cannot currently be used as independent demand constraints for this network.**
 
 ## Resultado
@@ -102,5 +102,5 @@ O caminho oficial disponível é: `NB_SCATS_SITE` ↔ `SITE_NO` para alcançar o
 | Operação sheets oferecem uma rota para detector→movimento | Descrição oficial e campos `Detectors`, `Signal Groups`, `Operation Notes`, `Phasing` | `RESEARCH_SUPPORTED` (capacidade declarada) | DTP publica material por site que descreve operação de detector/sinal | Não foi validado um sheet individual versus `NB_DETECTOR`/data de vigência |
 | Dados podem entrar como demanda independente agora | Mapping e horário não demonstrados | `UNVERIFIED` / negado pela evidência atual | Nenhum uso como constraint até resolver a associação | Não construir OD/rotas a partir destas contagens |
 
-**Artefatos:** este relatório apenas; os downloads temporários foram removidos.  
+**Artefatos:** este relatório apenas; os downloads temporários foram removidos.
 **Validação:** download oficial, inspeção do dicionário/cabeçalho, filtros de bbox, join de IDs e contagens diárias reproduzidos localmente; sem testes de código e sem execução SUMO.
