@@ -121,7 +121,9 @@ class ArenaInstanceDTO(BaseModel):
     initial_city_state_hash: str
     current_city_state_hash: str
     current_round_index: int = Field(ge=0, le=10)
-    current_state: ArenaCityStateDTO
+    current_state: ArenaCityStateDTO | None = Field(
+        description="Nulo somente quando o estado confirmado não pôde ser serializado; hash e round atuais continuam disponíveis."
+    )
 
 
 class ArenaIndicatorCoverageDTO(BaseModel):
@@ -253,7 +255,16 @@ class ArenaJob(BaseModel):
     manifest_hash: str
     manifest: ArenaManifestDTO
     horizon_rounds: int = Field(ge=1, le=10)
-    completed_rounds: int = Field(ge=0, le=10)
+    committed_rounds: int = Field(
+        ge=0,
+        le=10,
+        description="Rodadas confirmadas pelo ArenaRunner, inclusive quando detalhes da API falham ao serializar.",
+    )
+    completed_rounds: int = Field(
+        ge=0,
+        le=10,
+        description="Rodadas cujos detalhes foram integralmente serializados e publicados em rounds.",
+    )
     instances: list[ArenaInstanceDTO] = Field(min_length=5, max_length=5)
     rounds: list[ArenaRoundDTO] = Field(default_factory=list)
     error: ArenaFailure | None = None

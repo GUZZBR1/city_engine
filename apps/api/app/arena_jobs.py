@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from threading import RLock
 from uuid import uuid4
@@ -57,6 +58,7 @@ class _ArenaRecord:
 
 _jobs: dict[str, _ArenaRecord] = {}
 _jobs_lock = RLock()
+_logger = logging.getLogger(__name__)
 
 
 def create_arena(request: ArenaRequest) -> ArenaJob:
@@ -101,6 +103,7 @@ def create_arena(request: ArenaRequest) -> ArenaJob:
         manifest_hash=manifest.manifest_hash,
         manifest=_manifest_dto(manifest),
         horizon_rounds=manifest.horizon_rounds,
+        committed_rounds=0,
         completed_rounds=0,
         instances=instances,
     )
@@ -128,9 +131,38 @@ def run_arena(arena_id: str) -> None:
     for round_index in range(1, record.job.horizon_rounds + 1):
         try:
             committed = record.runner.run_round(round_index, record.policies)
-            if len(committed) != 5 or len({item.instance_id for item in committed}) != 5:
-                raise RuntimeError("round commit não contém as cinco instâncias")
-            round_dto = _round_dto(committed)
+        except ParticipantFailure as exc:
+            _logger.exception(
+                "Arena participant failed before round %s committed (arena_id=%s)",
+                round_index,
+                arena_id,
+            )
+            _fail_arena(
+                arena_id,
+                ArenaFailure(
+                    code="participant_failed",
+                    message=f"A rodada {round_index} falhou; nenhum resultado dessa rodada foi publicado.",
+                    round_index=round_index,
+                    instance_id=exc.instance_id,
+                ),
+            )
+            return
+        except Exception:
+            _logger.exception("Arena round execution failed (arena_id=%s, round=%s)", arena_id, round_index)
+            _fail_arena(
+                arena_id,
+                ArenaFailure(
+                    code="arena_round_failed",
+                    message=f"A rodada {round_index} falhou; nenhum resultado dessa rodada foi publicado.",
+                    round_index=round_index,
+                ),
+            )
+            return
+
+        # run_round returns only after the domain has committed its five records.
+        # Track that fact before attempting API serialization: later mapping errors
+        # must not make the GET response look as if the runner stayed on an older state.
+        try:
             policies_by_instance = {
                 instance.instance_id: policy
                 for instance, policy in zip(record.runner.instances, record.policies, strict=True)
@@ -143,37 +175,66 @@ def run_arena(arena_id: str) -> None:
                 )
                 for instance in record.runner.instances
             ]
-        except ParticipantFailure as exc:
-            _fail_arena(
+        except Exception:
+            _logger.exception(
+                "Arena committed states could not be serialized (arena_id=%s, round=%s)",
                 arena_id,
-                ArenaFailure(
-                    code="participant_failed",
-                    message=f"A rodada {round_index} falhou; nenhum resultado dessa rodada foi publicado.",
-                    round_index=round_index,
-                    instance_id=exc.instance_id,
-                ),
+                round_index,
             )
-            return
-        except Exception:  # noqa: BLE001 - terminate the background job on any ordinary failure.
-            _fail_arena(
+            _fail_committed_round(
                 arena_id,
-                ArenaFailure(
-                    code="arena_round_failed",
-                    message=f"A rodada {round_index} falhou; nenhum resultado dessa rodada foi publicado.",
+                round_index=round_index,
+                instances=_committed_instance_summaries(record),
+                failure=ArenaFailure(
+                    code="arena_state_serialization_failed",
+                    message=(
+                        f"A rodada {round_index} foi confirmada pelo motor, mas os estados não puderam ser serializados. "
+                        "Nenhum detalhe dessa rodada foi publicado."
+                    ),
                     round_index=round_index,
                 ),
             )
             return
 
-        # The runner returns only after its five-record CAS commit succeeds.
+        with _jobs_lock:
+            current = _jobs.get(arena_id)
+            if current is not record:
+                return
+            record.job = record.job.model_copy(update={
+                "committed_rounds": record.job.committed_rounds + 1,
+                "instances": updated_instances,
+            })
+
+        try:
+            if len(committed) != 5 or len({item.instance_id for item in committed}) != 5:
+                raise ValueError("committed round must contain exactly five unique instances")
+            round_dto = _round_dto(committed)
+        except Exception:
+            _logger.exception(
+                "Arena committed round details could not be serialized (arena_id=%s, round=%s)",
+                arena_id,
+                round_index,
+            )
+            _fail_arena(
+                arena_id,
+                ArenaFailure(
+                    code="arena_result_serialization_failed",
+                    message=(
+                        f"A rodada {round_index} foi confirmada pelo motor, mas seus detalhes não puderam ser serializados. "
+                        "Nenhum detalhe dessa rodada foi publicado."
+                    ),
+                    round_index=round_index,
+                ),
+            )
+            return
+
         with _jobs_lock:
             current = _jobs.get(arena_id)
             if current is not record:
                 return
             rounds = [*record.job.rounds, round_dto]
             record.job = record.job.model_copy(update={
-                "completed_rounds": len(rounds),
-                "instances": updated_instances,
+                "completed_rounds": record.job.completed_rounds + 1,
                 "rounds": rounds,
             })
 
@@ -188,6 +249,40 @@ def _fail_arena(arena_id: str, failure: ArenaFailure) -> None:
         record = _jobs.get(arena_id)
         if record is not None:
             record.job = record.job.model_copy(update={"status": "failed", "error": failure})
+
+
+def _committed_instance_summaries(record: _ArenaRecord) -> list[ArenaInstanceDTO]:
+    """Expose confirmed state identity/hash while marking full state unavailable."""
+    existing_by_id = {instance.instance_id: instance for instance in record.job.instances}
+    summaries: list[ArenaInstanceDTO] = []
+    for instance in record.runner.instances:
+        state = record.runner.state_copy(instance.instance_id)
+        existing = existing_by_id[instance.instance_id]
+        summaries.append(existing.model_copy(update={
+            "current_city_state_hash": state.city_state_hash,
+            "current_round_index": state.round_index,
+            "current_state": None,
+        }))
+    return summaries
+
+
+def _fail_committed_round(
+    arena_id: str,
+    *,
+    round_index: int,
+    instances: list[ArenaInstanceDTO],
+    failure: ArenaFailure,
+) -> None:
+    """Record a runner commit even when the current-state DTO mapping also fails."""
+    with _jobs_lock:
+        record = _jobs.get(arena_id)
+        if record is not None:
+            record.job = record.job.model_copy(update={
+                "status": "failed",
+                "committed_rounds": record.job.committed_rounds + 1,
+                "instances": instances,
+                "error": failure,
+            })
 
 
 def _load_aurora_snapshot():

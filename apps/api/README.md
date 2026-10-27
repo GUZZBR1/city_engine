@@ -47,9 +47,14 @@ as métricas do motor.
 `POST /api/v1/arenas` cria um job anual para Aurora sintética. `horizon_rounds`
 aceita inteiros entre 1 e 10 (padrão 10); `GET /api/v1/arenas/{arena_id}`
 retorna o status, o manifesto, as cinco instâncias e os resultados das rodadas
-completamente confirmadas. Cada execução usa cinco políticas de referência
-determinísticas e não produz ranking agregado. A falha é retornada como job
-`failed` com código e mensagem, preservando apenas as rodadas já confirmadas.
+com detalhes completamente serializados. `committed_rounds` conta confirmações
+do motor; `completed_rounds` conta rodadas publicadas em `rounds`. Se a
+serialização falhar após a confirmação, o job fica `failed`, mantém os hashes e
+índices das cinco instâncias confirmadas, deixa `current_state` nulo se o estado
+completo não pôde ser convertido e não publica detalhes parciais. Cada execução
+usa cinco políticas de referência determinísticas e não produz ranking
+agregado. A falha é retornada como job `failed` com código e mensagem,
+preservando detalhes apenas das rodadas serializadas integralmente.
 
 Jobs de simulação, comparação e Arena usam memória do processo e
 `BackgroundTasks`; reiniciar a API perde os jobs. Não há fila externa,

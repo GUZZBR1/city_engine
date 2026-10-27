@@ -174,3 +174,85 @@ def test_round_failure_preserves_previous_committed_round_without_partial_public
     assert failed.rounds[0].round_index == 1
     assert {item.current_round_index for item in failed.instances} == {1}
     assert len(failed.rounds[0].instances) == 5
+
+
+def test_serialization_failure_exposes_committed_states_without_publishing_partial_round(
+    monkeypatch, caplog
+):
+    created, _ = _post_arena(1)
+    arena_id = created.arena.arena_id
+    record = arena_jobs._jobs[arena_id]
+    serialization_detail = "private serialization failure detail"
+
+    def fail_serialization(_committed):
+        raise RuntimeError(serialization_detail)
+
+    monkeypatch.setattr(arena_jobs, "_round_dto", fail_serialization)
+    arena_jobs.run_arena(arena_id)
+
+    failed = arena_jobs.get_arena(arena_id)
+    committed_states = {
+        instance.instance_id: record.runner.state_copy(instance.instance_id)
+        for instance in record.runner.instances
+    }
+
+    assert failed.status == "failed"
+    assert failed.error.code == "arena_result_serialization_failed"
+    assert failed.error.round_index == 1
+    assert failed.completed_rounds == 0
+    assert failed.committed_rounds == 1
+    assert failed.rounds == []
+    assert len(failed.instances) == 5
+    for instance in failed.instances:
+        committed_state = committed_states[instance.instance_id]
+        assert instance.current_round_index == 1
+        assert instance.current_city_state_hash == committed_state.city_state_hash
+        assert instance.current_state.city_state_hash == committed_state.city_state_hash
+
+    public_response = failed.model_dump_json()
+    assert serialization_detail not in public_response
+    assert any(
+        record.exc_info is not None and serialization_detail in str(record.exc_info[1])
+        for record in caplog.records
+    )
+
+
+def test_state_serialization_failure_exposes_committed_hashes_without_stale_state(
+    monkeypatch, caplog
+):
+    created, _ = _post_arena(1)
+    arena_id = created.arena.arena_id
+    record = arena_jobs._jobs[arena_id]
+    serialization_detail = "private state serialization failure detail"
+
+    def fail_instance_serialization(_instance, _state, _policy):
+        raise RuntimeError(serialization_detail)
+
+    monkeypatch.setattr(arena_jobs, "_instance_dto", fail_instance_serialization)
+    arena_jobs.run_arena(arena_id)
+
+    failed = arena_jobs.get_arena(arena_id)
+    committed_states = {
+        instance.instance_id: record.runner.state_copy(instance.instance_id)
+        for instance in record.runner.instances
+    }
+
+    assert failed.status == "failed"
+    assert failed.error.code == "arena_state_serialization_failed"
+    assert failed.error.round_index == 1
+    assert failed.committed_rounds == 1
+    assert failed.completed_rounds == 0
+    assert failed.rounds == []
+    assert len(failed.instances) == 5
+    for instance in failed.instances:
+        committed_state = committed_states[instance.instance_id]
+        assert instance.current_round_index == 1
+        assert instance.current_city_state_hash == committed_state.city_state_hash
+        assert instance.current_state is None
+
+    public_response = failed.model_dump_json()
+    assert serialization_detail not in public_response
+    assert any(
+        record.exc_info is not None and serialization_detail in str(record.exc_info[1])
+        for record in caplog.records
+    )
