@@ -17,6 +17,9 @@ export interface CreateExperimentInput { arena_manifest_id: string; arena_manife
 export type ExpectedExperimentPlan = Pick<CreateExperimentInput, 'window_ids' | 'strategies' | 'seeds' | 'metrics' | 'primary_metrics'>;
 export interface PairedExperiment { experiment_id: string; dto_schema_version: '1.0'; protocol_id: 'aurora-paired-multiseed-v1'; protocol_version: 1; manifest_sha256: string; arena_manifest_id: string; arena_manifest_sha256: string; status: ExperimentStatus; planned_pairs: number; completed_pairs: number; failed_pairs: number; running_pairs: number; missing_pairs: number; missing_pair_ids: string[]; planned_executions: number; attempts: number; sumo_runs_used: number; wall_clock_seconds_used: number; reserved_wall_clock_seconds: number; cancellation_requested: boolean; stop_reason: string | null; error_code: string | null; manifest: Record<string, unknown>; limitations: string[]; pairs: ExperimentPair[]; summaries_by_window: WindowSummary[]; }
 export interface ExperimentCancellation { experiment_id: string; status: 'running' | 'cancelled'; cancellation_requested: boolean; }
+export function rememberCancellationAcknowledgement(acknowledgedIds: ReadonlySet<string>, experimentId: string): Set<string> {
+  return new Set(acknowledgedIds).add(experimentId);
+}
 export const PAIRED_EXPERIMENTS_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '') + '/api/v1/mobility-experiments';
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
@@ -87,4 +90,14 @@ export function parseExperimentCancellation(value: unknown, expectedId?: string)
 export async function cancelPairedExperiment(id: string): Promise<ExperimentCancellation> {
   const response = await requestJson(`${PAIRED_EXPERIMENTS_URL}/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
   return parseExperimentCancellation(response, id);
+}
+
+export async function cancelAndRefreshPairedExperiment(
+  id: string,
+  expectedPlan: ExpectedExperimentPlan | undefined,
+  onCancellationAcknowledged: (experimentId: string) => void,
+): Promise<PairedExperiment> {
+  const response = await cancelPairedExperiment(id);
+  if (response.cancellation_requested || response.status === 'cancelled') onCancellationAcknowledged(response.experiment_id);
+  return fetchPairedExperiment(id, undefined, expectedPlan);
 }

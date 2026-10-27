@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { cancelPairedExperiment, createPairedExperiment, computePolicySha256, fetchPairedExperiment, pairOutcome, retryPairedExperiment, type CreateExperimentInput, type DeltaValue, type ExpectedExperimentPlan, type MetricValue, type PairedExperiment, type MultiSeedBudget, type StrategyInput } from './pairedExperiment';
+import { useEffect, useRef, useState } from 'react';
+import { cancelAndRefreshPairedExperiment, createPairedExperiment, computePolicySha256, fetchPairedExperiment, pairOutcome, rememberCancellationAcknowledgement, retryPairedExperiment, type CreateExperimentInput, type DeltaValue, type ExpectedExperimentPlan, type MetricValue, type PairedExperiment, type MultiSeedBudget, type StrategyInput } from './pairedExperiment';
 import './PairedExperimentPanel.css';
 
 const windowOptions = [
@@ -35,7 +35,7 @@ export function MetricProvenanceCell({ baseline, strategy, delta, rawBaseline, r
   return <td><div className="paired-provenance"><div><strong>Baseline:</strong> {armSource(baseline, rawBaseline)}</div><div><strong>Estratégia:</strong> {armSource(strategy, rawStrategy)}</div><div><strong>Delta:</strong> {delta ? <>{delta.provenance_kind} · {delta.method_version} · {delta.direction}<br/><code>SHA-256 {delta.source_artifact_sha256.join(' / ')}</code></> : 'Não disponível'}</div></div></td>;
 }
 
-function ExperimentCreateForm({ onCreated }: { onCreated: (experiment: PairedExperiment, input: CreateExperimentInput) => void }) {
+function ExperimentCreateForm({ onCreateStarted, onCreated }: { onCreateStarted: () => number; onCreated: (experiment: PairedExperiment, input: CreateExperimentInput, generation: number) => void }) {
   const [windows, setWindows] = useState<string[]>([]), [seeds, setSeeds] = useState('42, 43, 44');
   const [arenaId,setArenaId]=useState(''),[arenaHash,setArenaHash]=useState(''),[round,setRound]=useState('1'),[instance,setInstance]=useState('');
   const [strategies,setStrategies]=useState('[]');
@@ -53,7 +53,7 @@ function ExperimentCreateForm({ onCreated }: { onCreated: (experiment: PairedExp
     if(!admitIncomplete&&(Number(runs)<requiredRuns||Number(wallTotal)<requiredWall))throw Error(`Orçamento insuficiente: o plano requer até ${requiredRuns} execuções e ${requiredWall}s.`); const metricTolerances=JSON.parse(tolerances) as CreateExperimentInput['metric_tolerances']; if(!primary.length||primary.some(m=>!metrics.includes(m)))throw Error('Métricas primárias devem ser subconjunto das métricas solicitadas.');
     if(metrics.some(m=>['mean_travel_time_seconds','mean_speed_kmh'].includes(m))&&['trips_requested','trips_completed','trips_not_completed'].some(m=>!metrics.includes(m)))throw Error('Tempo/velocidade exigem as três métricas de contagem de viagens.');
     const input:CreateExperimentInput={arena_manifest_id:arenaId,arena_manifest_sha256:arenaHash,round_index:Number(round),instance_id:instance,city_id:'aurora-base-v1',window_ids:[...windows],seeds:seedList,strategies:strategyList,baseline_id:baseline,baseline_version:baselineVersion,baseline_sha256:baselineHash,drain_limit_seconds:Number(drain),metrics,metric_tolerances:metricTolerances,method_version:'sumo-metrics-v1',budget,reproducibility_checks:0,selection_method:'externally_predeclared',master_seed:null,primary_metrics:primary,confidence_level:0.95};
-    setBusy(true);onCreated(await createPairedExperiment(input),input);
+    const generation=onCreateStarted();setBusy(true);onCreated(await createPairedExperiment(input),input,generation);
   }catch(err){setError(err instanceof Error?err.message:'Não foi possível criar o experimento.');}finally{setBusy(false);}};
   return <form className="paired-create" onSubmit={submit} aria-labelledby="paired-create-title"><div className="paired-subheading"><div><p className="eyebrow">PLANO IMUTÁVEL · DEFINA ANTES DE EXECUTAR</p><h3 id="paired-create-title">Novo experimento pareado</h3></div><span className="protocol-tag">AURORA · V1</span></div>
     <fieldset className="window-selection"><legend>Janelas configuradas <span>(selecione explicitamente)</span></legend><div className="paired-window-options">{windowOptions.map(w=><label className="paired-choice" key={w.id}><input type="checkbox" checked={windows.includes(w.id)} disabled={busy} onChange={()=>toggle(windows,setWindows,w.id)}/><span><strong>{w.label}</strong><small>{w.id}</small></span></label>)}</div></fieldset>
@@ -108,21 +108,29 @@ function PairList({ experiment }: { experiment: PairedExperiment }) {
   </section>;
 }
 
-export function ExperimentDetails({ experiment, onRetry, onResume, onCancel, busy }: { experiment: PairedExperiment; onRetry: () => void; onResume: () => void; onCancel: () => void; busy: boolean }) {
+export function ExperimentDetails({ experiment, onRetry, onResume, onCancel, busy, cancelPending = false, cancellationAcknowledged = false }: { experiment: PairedExperiment; onRetry: () => void; onResume: () => void; onCancel: () => void; busy: boolean; cancelPending?: boolean; cancellationAcknowledged?: boolean }) {
   const active = experiment.status === 'queued' || experiment.status === 'running';
+  const cancellable = active || experiment.status === 'partial';
+  const cancellationRequested = experiment.cancellation_requested || cancellationAcknowledged;
   return <div className="paired-experiment-result">
     <div className="paired-overview"><div><p className="eyebrow">EXPERIMENTO · {experiment.dto_schema_version} / PROTOCOLO {experiment.protocol_version}</p><h3>{experiment.experiment_id}</h3></div><span className={statusClass(experiment.status)} role="status">{statusLabel[experiment.status]}</span></div>
     <div className="paired-counts" aria-label="Contagem de pares"><div><strong>{experiment.planned_pairs}</strong><span>Planejados</span></div><div><strong>{experiment.completed_pairs}</strong><span>Completos</span></div><div><strong>{experiment.failed_pairs}</strong><span>Falhos</span></div><div><strong>{experiment.running_pairs}</strong><span>Em execução</span></div><div><strong>{experiment.missing_pairs}</strong><span>Faltantes</span></div></div>
     <p className="paired-sr-only" aria-live="polite">Estado {statusLabel[experiment.status]}. Planejados {experiment.planned_pairs}; completos {experiment.completed_pairs}; falhos {experiment.failed_pairs}; em execução {experiment.running_pairs}; faltantes {experiment.missing_pairs}.</p>
     {experiment.status === 'partial' && <div className="paired-missing" role="status"><strong>Resultado parcial e incompleto.</strong> Os resumos são apenas descritivos de pares completos, sujeitos à seleção por falhas. IC inferencial está oculto nesta apresentação.</div>}
-    {active && <p className="paired-live" role="status" aria-live="polite">{experiment.cancellation_requested ? 'Cancelamento solicitado; aguardando a interrupção cooperativa…' : 'Atualizando o experimento automaticamente…'}</p>}
+    {cancelPending && <p className="paired-live" role="status" aria-live="polite">Solicitando cancelamento…</p>}
+    {cancellationRequested && !cancelPending && <p className="paired-live" role="status" aria-live="polite">Cancelamento solicitado; atualize o estado para confirmar a conclusão.</p>}
+    {active && !cancellationRequested && !cancelPending && <p className="paired-live" role="status" aria-live="polite">Atualizando o experimento automaticamente…</p>}
     <dl className="paired-manifest"><div><dt>Manifesto do experimento</dt><dd>{experiment.manifest_sha256}</dd></div><div><dt>Manifesto da Arena referenciado</dt><dd>{experiment.arena_manifest_id} · {experiment.arena_manifest_sha256}</dd></div><div><dt>Execuções planejadas</dt><dd>{experiment.planned_executions}</dd></div><div><dt>SUMO utilizado</dt><dd>{experiment.sumo_runs_used} · {experiment.wall_clock_seconds_used}s usados · {experiment.reserved_wall_clock_seconds}s reservados</dd></div><div><dt>Manifesto congelado</dt><dd><details><summary>Ver parâmetros e proveniência</summary><pre>{JSON.stringify(experiment.manifest,null,2)}</pre></details></dd></div></dl>
     <dl className="paired-manifest"><div><dt>Código de erro</dt><dd>{experiment.error_code ?? 'Não informado'}</dd></div><div><dt>Motivo de parada</dt><dd>{experiment.stop_reason ?? 'Não informado'}</dd></div></dl><SummaryTable experiment={experiment} />
     <PairList experiment={experiment} />
     <section className="paired-caveats" aria-labelledby="paired-limitations-title"><h3 id="paired-limitations-title">Escopo e limites de interpretação</h3><ul>{experiment.limitations.map((item) => <li key={item}>{item.replaceAll('_', ' ')}</li>)}</ul><p>Aurora, a rede, a demanda e as intervenções são sintéticas. Resultados SUMO cobrem somente a janela e o escoamento configurado; filas agregam a rede e tempo/velocidade cobrem viagens concluídas até o fim do escoamento. Não há efeito isolado nos veículos expostos. Resultados não são anualizados e não sustentam inferência sobre tráfego real nem alegação causal. `route_exposure` indica passagem de uma rota pela área alterada; não segmenta resultados nem identifica veículos afetados.</p></section>
-    {active && !experiment.cancellation_requested && <div className="paired-actions"><button className="quiet-button paired-cancel" type="button" disabled={busy} onClick={onCancel}>{busy ? 'Solicitando cancelamento…' : 'Cancelar experimento'}</button></div>}
-    {experiment.status === 'partial' || experiment.status === 'failed' ? <div className="paired-actions"><button className="quiet-button" type="button" disabled={busy} onClick={onRetry}>Atualizar estado</button><button className="primary-button" type="button" disabled={busy} onClick={onResume}>{busy ? 'Solicitando retomada…' : 'Retomar pares incompletos'}</button></div> : null}
+    {cancellable && !cancellationRequested && !cancelPending && <div className="paired-actions"><button className="quiet-button paired-cancel" type="button" disabled={busy} onClick={onCancel}>Cancelar experimento</button></div>}
+    {(experiment.status === 'partial' || experiment.status === 'failed') ? <div className="paired-actions"><button className="quiet-button" type="button" disabled={busy} onClick={onRetry}>Atualizar estado</button>{!cancellationRequested && <button className="primary-button" type="button" disabled={busy} onClick={onResume}>{busy ? 'Solicitando retomada…' : 'Retomar pares incompletos'}</button>}</div> : null}
   </div>;
+}
+
+export function CreatedExperimentNotice({ experimentId }: { experimentId: string }) {
+  return <p className="paired-live" role="status">Experimento criado enquanto outra seleção estava aberta. ID do novo experimento: <code>{experimentId}</code>. Copie este ID para carregá-lo.</p>;
 }
 
 export function PairedExperimentPanel() {
@@ -130,23 +138,59 @@ export function PairedExperimentPanel() {
   const [expectedPlan, setExpectedPlan] = useState<ExpectedExperimentPlan | null>(null);
   const [lookupId, setLookupId] = useState('');
   const [busy, setBusy] = useState(false);
+  const [cancelPendingIds, setCancelPendingIds] = useState<Set<string>>(() => new Set());
+  const [cancellationAcknowledgedIds, setCancellationAcknowledgedIds] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState('');
+  const [createdWhileViewingAnotherExperiment, setCreatedWhileViewingAnotherExperiment] = useState('');
   const [failedLookupId, setFailedLookupId] = useState('');
-  const active = experiment?.status === 'queued' || experiment?.status === 'running';
+  const selectedExperimentId = useRef<string | null>(null);
+  const [selectedExperimentIdForView, setSelectedExperimentIdForView] = useState<string | null>(null);
+  const selectionGeneration = useRef(0);
+  const [selectionRevision, setSelectionRevision] = useState(0);
+  const busyOperationCount = useRef(0);
+  const beginBusyOperation = () => { busyOperationCount.current += 1; setBusy(true); };
+  const endBusyOperation = () => { busyOperationCount.current = Math.max(0, busyOperationCount.current - 1); setBusy(busyOperationCount.current > 0); };
+  const reconcileCancellationAcknowledgement = (updated: PairedExperiment) => {
+    if (!updated.cancellation_requested && updated.status !== 'cancelled') return;
+    setCancellationAcknowledgedIds((current) => {
+      if (!current.has(updated.experiment_id)) return current;
+      const next = new Set(current);
+      next.delete(updated.experiment_id);
+      return next;
+    });
+  };
+  const beginSelection = (experimentId: string | null) => {
+    const generation = ++selectionGeneration.current;
+    selectedExperimentId.current = experimentId;
+    setSelectedExperimentIdForView(experimentId);
+    setSelectionRevision(generation);
+    return generation;
+  };
+  const selectExperiment = (selected: PairedExperiment, generation = selectionGeneration.current) => {
+    if (generation !== selectionGeneration.current) return false;
+    selectedExperimentId.current = selected.experiment_id;
+    setSelectedExperimentIdForView(selected.experiment_id);
+    reconcileCancellationAcknowledgement(selected);
+    setExperiment(selected);
+    return true;
+  };
+  const active = !!experiment && (experiment.status === 'queued' || experiment.status === 'running') && !cancelPendingIds.has(experiment.experiment_id);
 
   useEffect(() => {
-    if (!active || !experiment) return;
+    if (!active || !experiment || selectedExperimentIdForView !== experiment.experiment_id) return;
     const controller = new AbortController();
     let timer: number;
+    const generation = selectionGeneration.current;
     const poll = async () => {
       try {
         const updated = await fetchPairedExperiment(experiment.experiment_id, controller.signal, expectedPlan ?? undefined);
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || selectionGeneration.current !== generation || selectedExperimentId.current !== experiment.experiment_id) return;
+        reconcileCancellationAcknowledgement(updated);
         setExperiment(updated);
         setError('');
         if (updated.status === 'queued' || updated.status === 'running') timer = window.setTimeout(poll, 1500);
       } catch (reason) {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && selectionGeneration.current === generation && selectedExperimentId.current === experiment.experiment_id) {
           setError(reason instanceof Error ? reason.message : 'Não foi possível atualizar o experimento.');
           timer = window.setTimeout(poll, 3000);
         }
@@ -154,34 +198,33 @@ export function PairedExperimentPanel() {
     };
     timer = window.setTimeout(poll, 1500);
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [active, experiment?.experiment_id, experiment?.status, expectedPlan]);
+  }, [active, experiment?.experiment_id, experiment?.status, expectedPlan, selectedExperimentIdForView, selectionRevision]);
 
   const lookup = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); setBusy(true); setError(''); setFailedLookupId(lookupId.trim());
-    const plan = experiment?.experiment_id === lookupId.trim() ? expectedPlan : null;
-    setExpectedPlan(plan);
-    try { const loaded = await fetchPairedExperiment(lookupId.trim(), undefined, plan ?? undefined); setExperiment(loaded); setFailedLookupId(''); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível carregar o experimento.'); }
-    finally { setBusy(false); }
+    event.preventDefault(); const id = lookupId.trim(); const previousId = selectedExperimentId.current; const previousPlan = expectedPlan; const generation = beginSelection(id); beginBusyOperation(); setError(''); setFailedLookupId(id);
+    const plan = experiment?.experiment_id === id ? expectedPlan : null;
+    try { const loaded = await fetchPairedExperiment(id, undefined, plan ?? undefined); if (selectExperiment(loaded, generation)) { setExpectedPlan(plan); setFailedLookupId(''); } }
+    catch (reason) { if (selectionGeneration.current === generation) { beginSelection(previousId); setExpectedPlan(previousPlan); setError(reason instanceof Error ? reason.message : 'Não foi possível carregar o experimento.'); } }
+    finally { endBusyOperation(); }
   };
   const retry = () => {
     const id = failedLookupId || experiment?.experiment_id;
     if (!id) return;
-    setLookupId(id); setError('');
+    const previousId = selectedExperimentId.current; const previousPlan = expectedPlan; const generation = beginSelection(id); beginBusyOperation(); setLookupId(id); setError('');
     const plan = experiment?.experiment_id === id ? expectedPlan : null;
-    setExpectedPlan(plan);
-    void fetchPairedExperiment(id, undefined, plan ?? undefined).then((loaded) => { setExperiment(loaded); setFailedLookupId(''); }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Falha ao tentar novamente.'));
+    void fetchPairedExperiment(id, undefined, plan ?? undefined).then((loaded) => { if (selectExperiment(loaded, generation)) { setExpectedPlan(plan); setFailedLookupId(''); } }).catch((reason: unknown) => { if (selectionGeneration.current === generation) { beginSelection(previousId); setExpectedPlan(previousPlan); setError(reason instanceof Error ? reason.message : 'Falha ao tentar novamente.'); } }).finally(endBusyOperation);
   };
 
-  const resume = async () => { if (!experiment || !['partial','failed'].includes(experiment.status)) return; setBusy(true); setError(''); try { const updated = await retryPairedExperiment(experiment.experiment_id, expectedPlan ?? undefined); setExperiment(updated); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível retomar pares incompletos.'); } finally { setBusy(false); } };
-  const cancel = async () => { if (!experiment || !['queued','running'].includes(experiment.status) || experiment.cancellation_requested) return; setBusy(true); setError(''); try { const response = await cancelPairedExperiment(experiment.experiment_id); const updated = await fetchPairedExperiment(response.experiment_id, undefined, expectedPlan ?? undefined); setExperiment(updated); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível cancelar o experimento.'); } finally { setBusy(false); } };
+  const resume = async () => { if (!experiment || !['partial','failed'].includes(experiment.status) || experiment.cancellation_requested || cancellationAcknowledgedIds.has(experiment.experiment_id)) return; const id = experiment.experiment_id; const generation = selectionGeneration.current; beginBusyOperation(); setError(''); try { const updated = await retryPairedExperiment(id, expectedPlan ?? undefined); if (selectionGeneration.current === generation && selectedExperimentId.current === id) selectExperiment(updated, generation); } catch (reason) { if (selectionGeneration.current === generation && selectedExperimentId.current === id) setError(reason instanceof Error ? reason.message : 'Não foi possível retomar pares incompletos.'); } finally { endBusyOperation(); } };
+  const cancel = async () => { if (!experiment || !['queued','running','partial'].includes(experiment.status) || experiment.cancellation_requested || cancellationAcknowledgedIds.has(experiment.experiment_id) || cancelPendingIds.has(experiment.experiment_id)) return; const id = experiment.experiment_id; const generation = beginSelection(id); setCancelPendingIds((current) => new Set(current).add(id)); setError(''); try { const updated = await cancelAndRefreshPairedExperiment(id, expectedPlan ?? undefined, (acknowledgedId) => setCancellationAcknowledgedIds((current) => rememberCancellationAcknowledgement(current, acknowledgedId))); if (selectionGeneration.current === generation && selectedExperimentId.current === id) selectExperiment(updated, generation); } catch (reason) { if (selectionGeneration.current === generation && selectedExperimentId.current === id) setError(reason instanceof Error ? reason.message : 'Não foi possível cancelar o experimento.'); } finally { setCancelPendingIds((current) => { const next = new Set(current); next.delete(id); return next; }); } };
 
   return <section className="simulation-panel paired-panel" aria-labelledby="paired-experiment-title">
     <div className="section-heading"><div><p className="eyebrow">PROTOCOLO DE EXPERIMENTO PAREADO · MULTI-SEED</p><h2 id="paired-experiment-title">Experimento SUMO por janela</h2></div><span className="synthetic-pill">AURORA SINTÉTICA</span></div>
     <p className="simulation-description">Compare cada estratégia com o mesmo baseline, snapshot, demanda expandida, janela e seed. Seeds variam somente a aleatoriedade operacional do SUMO; não amostram demanda. Resumos e incerteza permanecem separados por janela.</p>
-    <ExperimentCreateForm onCreated={(created, input) => { setExperiment(created); setExpectedPlan({ window_ids: input.window_ids, strategies: input.strategies, seeds: input.seeds, metrics: input.metrics, primary_metrics: input.primary_metrics }); setLookupId(created.experiment_id); setFailedLookupId(''); setError(''); }} />
+    <ExperimentCreateForm onCreateStarted={() => { setCreatedWhileViewingAnotherExperiment(''); return beginSelection(selectedExperimentId.current); }} onCreated={(created, input, generation) => { if (!selectExperiment(created, generation)) { setCreatedWhileViewingAnotherExperiment(created.experiment_id); return; } const plan = { window_ids: input.window_ids, strategies: input.strategies, seeds: input.seeds, metrics: input.metrics, primary_metrics: input.primary_metrics }; setExpectedPlan(plan); setLookupId(created.experiment_id); setFailedLookupId(''); setError(''); }} />
+    {createdWhileViewingAnotherExperiment && <CreatedExperimentNotice experimentId={createdWhileViewingAnotherExperiment} />}
     <form className="paired-lookup" onSubmit={lookup}><label htmlFor="paired-lookup-id">Acompanhar experimento existente</label><input id="paired-lookup-id" value={lookupId} onChange={(event) => setLookupId(event.target.value)} placeholder="experiment_id" required /><button className="quiet-button" disabled={busy} type="submit">{busy ? 'Carregando…' : 'Carregar'}</button></form>
     {error && <div className="paired-error" role="alert"><strong>Não foi possível carregar ou atualizar o experimento.</strong><p>{error}</p><button className="quiet-button" type="button" disabled={busy} onClick={retry}>Tentar novamente</button></div>}
-    {experiment && <ExperimentDetails experiment={experiment} onRetry={retry} onResume={resume} onCancel={cancel} busy={busy} />}
+    {experiment && <ExperimentDetails experiment={experiment} onRetry={retry} onResume={resume} onCancel={cancel} busy={busy || cancelPendingIds.has(experiment.experiment_id)} cancelPending={cancelPendingIds.has(experiment.experiment_id)} cancellationAcknowledged={cancellationAcknowledgedIds.has(experiment.experiment_id)} />}
   </section>;
 }

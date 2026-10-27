@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ExperimentDetails, MetricProvenanceCell, PairedExperimentPanel } from './PairedExperimentPanel';
-import { computePolicySha256, parseExperimentCancellation, parsePairedExperiment, type ExpectedExperimentPlan } from './pairedExperiment';
+import { CreatedExperimentNotice, ExperimentDetails, MetricProvenanceCell, PairedExperimentPanel } from './PairedExperimentPanel';
+import { cancelAndRefreshPairedExperiment, computePolicySha256, parseExperimentCancellation, parsePairedExperiment, rememberCancellationAcknowledgement, type ExpectedExperimentPlan } from './pairedExperiment';
 import { failedPairWithStaleDeltaFixture, pairedExperimentContractFixture } from './pairedExperiment.contract.fixture';
 
 const copy = (): { experiment: Record<string, any> } => structuredClone(pairedExperimentContractFixture) as { experiment: Record<string, any> };
@@ -84,6 +84,12 @@ describe('paired multi-seed DTO v1.0 adapter', () => {
 });
 
 describe('paired experiment form accessibility markup', () => {
+  it('surfaces the ID when a created experiment is not selected', () => {
+    const html = renderToStaticMarkup(<CreatedExperimentNotice experimentId="paired-exp-created-002" />);
+    expect(html).toContain('role="status"');
+    expect(html).toContain('<code>paired-exp-created-002</code>');
+  });
+
   it('uses a labeled, explicit window fieldset and exposes loading/error accessible regions', () => {
     const html = renderToStaticMarkup(<PairedExperimentPanel />);
     expect(html).toContain('<fieldset');
@@ -94,17 +100,41 @@ describe('paired experiment form accessibility markup', () => {
     expect(html).toContain('Acompanhar experimento existente');
   });
 
-  it('exposes an accessible cancel control only while the experiment can be cancelled', () => {
+  it('exposes cancellation for queued, running, and partial states, but not terminal or pending cancellation states', () => {
     const experiment = parsePairedExperiment(copy());
-    experiment.status = 'running';
-    const html = renderToStaticMarkup(<ExperimentDetails experiment={experiment} onRetry={() => {}} onResume={() => {}} onCancel={() => {}} busy={false} />);
-    expect(html).toContain('>Cancelar experimento</button>');
-    expect(html).not.toContain('aria-disabled="true"');
+    const render = (status: typeof experiment.status, cancellationRequested = false, cancelPending = false, cancellationAcknowledged = false) => {
+      experiment.status = status;
+      experiment.cancellation_requested = cancellationRequested;
+      return renderToStaticMarkup(<ExperimentDetails experiment={experiment} onRetry={() => {}} onResume={() => {}} onCancel={() => {}} busy={cancelPending} cancelPending={cancelPending} cancellationAcknowledged={cancellationAcknowledged} />);
+    };
+    for (const status of ['queued', 'running'] as const) {
+      const html = render(status);
+      expect(html).toContain('>Cancelar experimento</button>');
+      expect(html).toContain('Atualizando o experimento automaticamente');
+    }
+    const partial = render('partial');
+    expect(partial).toContain('>Cancelar experimento</button>');
+    expect(partial).not.toContain('Atualizando o experimento automaticamente');
+    for (const status of ['succeeded', 'failed', 'cancelled'] as const) {
+      const html = render(status);
+      expect(html).not.toContain('>Cancelar experimento</button>');
+      expect(html).not.toContain('Atualizando o experimento automaticamente');
+    }
 
-    experiment.cancellation_requested = true;
-    const pending = renderToStaticMarkup(<ExperimentDetails experiment={experiment} onRetry={() => {}} onResume={() => {}} onCancel={() => {}} busy={false} />);
+    const pending = render('running', true);
     expect(pending).not.toContain('>Cancelar experimento</button>');
     expect(pending).toContain('Cancelamento solicitado');
+    expect(render('partial', true)).not.toContain('>Cancelar experimento</button>');
+
+    const submitting = render('partial', false, true);
+    expect(submitting).not.toContain('>Cancelar experimento</button>');
+    expect(submitting).toContain('Solicitando cancelamento…');
+
+    const acceptedButRefreshFailed = render('partial', false, false, true);
+    expect(acceptedButRefreshFailed).not.toContain('>Cancelar experimento</button>');
+    expect(acceptedButRefreshFailed).toContain('Cancelamento solicitado; atualize o estado');
+    expect(acceptedButRefreshFailed).not.toContain('Retomar pares incompletos');
+    expect(acceptedButRefreshFailed).toContain('Atualizar estado</button>');
   });
 
   it('renders metric provenance and full artifact hashes separately for each arm', () => {
@@ -168,6 +198,38 @@ describe('mobility-experiments HTTP adapter', () => {
     expect(() => parseExperimentCancellation({ experiment_id: 'different', status: 'cancelled', cancellation_requested: true }, 'paired-exp-001')).toThrow(/outro experimento/);
     expect(() => parseExperimentCancellation({ experiment_id: 'paired-exp-001', status: 'queued', cancellation_requested: true })).toThrow(/fora do contrato/);
     vi.unstubAllGlobals();
+  });
+  it('preserves accepted cancellation when the follow-up detail refresh fails', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ experiment_id: 'paired-exp-001', status: 'cancelled', cancellation_requested: true }) })
+      .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({ detail: 'Status refresh unavailable.' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const acknowledged = vi.fn();
+    await expect(cancelAndRefreshPairedExperiment('paired-exp-001', undefined, acknowledged)).rejects.toThrow('Status refresh unavailable.');
+    expect(acknowledged).toHaveBeenCalledWith('paired-exp-001');
+    vi.unstubAllGlobals();
+  });
+  it('records an immediately cancelled response even when the request flag is false', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ experiment_id: 'paired-exp-001', status: 'cancelled', cancellation_requested: false }) })
+      .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({ detail: 'Status refresh unavailable.' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const acknowledged = vi.fn();
+    await expect(cancelAndRefreshPairedExperiment('paired-exp-001', undefined, acknowledged)).rejects.toThrow('Status refresh unavailable.');
+    expect(acknowledged).toHaveBeenCalledWith('paired-exp-001');
+    vi.unstubAllGlobals();
+  });
+  it('retains cancellation acknowledgements after switching between experiment IDs', () => {
+    const afterA = rememberCancellationAcknowledgement(new Set<string>(), 'experiment-A');
+    const afterB = rememberCancellationAcknowledgement(afterA, 'experiment-B');
+    expect(afterB.has('experiment-A')).toBe(true);
+    expect(afterB.has('experiment-B')).toBe(true);
+
+    const experimentA = parsePairedExperiment(copy());
+    experimentA.experiment_id = 'experiment-A';
+    experimentA.status = 'partial';
+    const html = renderToStaticMarkup(<ExperimentDetails experiment={experimentA} onRetry={() => {}} onResume={() => {}} onCancel={() => {}} busy={false} cancellationAcknowledged={afterB.has(experimentA.experiment_id)} />);
+    expect(html).not.toContain('>Cancelar experimento</button>');
   });
 });
 
