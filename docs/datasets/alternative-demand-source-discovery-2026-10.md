@@ -1,0 +1,53 @@
+# West Gate traffic source discovery
+
+**Research date:** 2026-10-27
+**Scope:** identify real traffic observations and independent demand candidates for the West Gate SUMO pilot. This is a source assessment only: no OD matrix was constructed, no demand was estimated, and no empirical calibration or validation was run.
+
+## Finding
+
+No current candidate clears every gate for a West Gate empirical run. The local official TIRTL source has useful time-resolved counts and speed bins under an explicit license, but the mapping of sites 504/505 to a SUMO lane/edge is unresolved and point observations do not identify OD demand. The repository has an executable OSM-derived West Gate network, but its empty-network smoke test is not a traffic validation. See the [pilot audit](victoria-tirtl-pilot.md), [mapping register](victoria-tirtl-mapping-register.json), [network notes](west-gate-sumo-network.md), and [validation status](victoria-tirtl-validation-status.md).
+
+Scores are qualitative, West Gate-specific comparisons (1 = weak, 5 = strong). Mapping measures verified assignment to a road direction/section, not mere availability of coordinates. Overall rank prioritizes local usefulness and evidence readiness; it is not a score average.
+
+| Rank | Candidate | Mapping | Temporal | License | Demand utility | SUMO fit | Overall |
+|---:|---|---:|---:|---:|---:|---:|---|
+| 1 | DTP TIRTL, West Gate sites 504/505 | 2 | 5 | 5 | 1 | 3 | Best local observation candidate, conditional on independent mapping evidence |
+| 2 | DTP SCATS traffic-signal volume data | 2 | 5 | 5 | 3 | 3 | Candidate for independent time-varying count constraints; detector locations still need mapping |
+| 3 | Victoria historical AADT GeoJSON | 4 | 1 | 5 | 3 | 4 | Independent directional volume prior; too coarse and old for time-resolved demand |
+| 4 | FHWA NGSIM I-80 | 4 | 5 | 1 | 4* | 3 | Strong real-traffic research benchmark, but unrelated geography and explicit reuse license not located |
+
+## Candidate evidence and limitations
+
+### 1. DTP TIRTL — West Gate observation candidate
+
+The [official DTP dataset page](https://opendata.transport.vic.gov.au/dataset/tirtl-traffic-counts) describes optical sensors that count and classify vehicles and measure speed. Records aggregate volume by 15-minute period, site, heading, vehicle class, and speed bin. The portal declares **Creative Commons Attribution 4.0** and warns of classification errors during high throughput and site outages.
+
+The repository's October 2026 audit reports 2,501 site/time/heading groups for site 505. However, the site table does not specify coordinate reference system/datum, coordinate accuracy, physical installation point, lane coverage, or the local convention for exported headings. Sites 504 and 505 therefore remain `unresolved` in the [mapping register](victoria-tirtl-mapping-register.json). Their coordinates do not yet prove a match to a SUMO edge or lane. TIRTL counts also provide no trajectories or OD; they cannot alone define network demand.
+
+### 2. DTP SCATS traffic-signal volumes — independent count candidate
+
+The [official DTP dataset](https://opendata.transport.vic.gov.au/dataset/traffic-signal-volume-data) publishes SCATS loop-detector counts in 15-minute periods and declares **Creative Commons Attribution 4.0**. The [data dictionary](https://opendata.transport.vic.gov.au/dataset/traffic-signal-volume-data/resource/001ace40-280b-462d-b580-7a79e70185fb) documents site ID, detector ID, interval time in AEST, and detector-volume fields.
+
+This is a candidate, not a mapped source: the reviewed dataset fields identify sites and detectors but do not establish detector coordinates, approach direction, lane-to-SUMO assignment, or speed. Site/detector geometry and coverage need verification before using selected detectors to constrain demand. Point counts can constrain flows but do not uniquely determine routes or OD.
+
+### 3. DTP historical AADT — directional volume prior
+
+The [official historical AADT dataset](https://opendata.transport.vic.gov.au/dataset/historical-annual-average-daily-traffic-volume) provides GeoJSON road-segment volumes for all vehicles and heavy vehicles in each direction, under **Creative Commons Attribution 4.0**. It covers 2001–2019 and is no longer updated; the portal says volumes may be either estimated or collected. It is useful as an independent broad-scale volume constraint, but not as current, time-of-day demand or speed evidence.
+
+### 4. FHWA NGSIM I-80 — academic/research benchmark
+
+FHWA's [I-80 dataset description](https://www.fhwa.dot.gov/publications/research/operations/06137/) documents real eastbound freeway data from Emeryville collected on 2005-04-13: a roughly 500 m, six-lane section, vehicle locations every 0.1 seconds, 45 minutes across three intervals, plus CAD/GIS, orthophotos, and loop-detector data. FHWA says NGSIM resources are [freely available](https://ops.fhwa.dot.gov/trafficanalysistools/ngsim.htm), but the reviewed official pages did not state an explicit reuse license; free download is not treated here as a license grant. Its geometry and trajectories are a strong SUMO research benchmark, not a West Gate demand source.
+
+*NGSIM's rich trajectories and detector series could support demand or validation experiments. The same trajectory records must not be used to generate demand and then be counted again as independent validation evidence.*
+
+## Demand and leakage boundary for West Gate
+
+- **Reserve TIRTL sites 504 and 505, and all summaries derived from their records, for validation only** if/when mapping is independently resolved. Do not feed their counts, speed profiles, or transformations into demand generation or adjustment.
+- Investigate SCATS detectors at distinct sites/approaches as a possible independent source of time-varying count constraints. First verify their geospatial locations, directions, network coverage, and SUMO assignments. Separate detector IDs prevent reuse of the exact TIRTL observations, but do not remove shared-source or sensor-system biases.
+- Use historical AADT only as a coarse external prior, not a time-resolved profile.
+- DTP confirms West Gate Tunnel project traffic modelling and published assessments, but the reviewed [official overview](https://transport.vic.gov.au/news-and-resources/projects-hub/transport-amenity-program) does not establish availability of executable OD or assignment matrices. Access and license for such inputs remain unknown.
+- SUMO documents route/demand generation from detector observations in its [HighwayDetector tutorial](https://sumo.sourceforge.net/docs/Tutorials/HighwayDetector.html); counts constrain demand but do not define a unique route solution. Do not report reconstructed OD as observed demand without independent trip/OD evidence.
+
+## Gate to advance
+
+Before an empirical West Gate run, establish an authoritative detector-to-lane/edge mapping and direction convention; choose independent demand inputs that exclude the validation-only TIRTL observations; and document coverage, time zone, missing-data and vehicle-class handling. Until then, describe TIRTL as observed source data with unresolved spatial mapping, and the West Gate SUMO network as an executable geometry candidate—not as an empirically validated traffic model.
