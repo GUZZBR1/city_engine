@@ -116,20 +116,20 @@
       ],
       "mapped_segment_id": null,
       "lane_id": null,
-      "confidence": "medium_confidence",
+      "confidence": "unresolved",
       "spatial_distance_method": "local projected point-to-polyline estimate under unverified source CRS",
       "ambiguities": [
         "The coordinate CRS/datum and positional accuracy are not declared by the source.",
         "The nine E-heading observations conflict with the WB site label; heading semantics are not documented.",
         "No evidence identifies the physical installation point or covered lane(s)."
       ],
-      "justification": "Site label, predominant W heading, and exploratory proximity all favor the WB candidate. These clues support a medium-confidence candidate only; they do not independently confirm a detector-to-edge association.",
+      "justification": "The site label and predominant W heading are not independently validated direction evidence; the distance estimate assumes an unverified CRS and lacks reproducible projection parameters. These clues do not support assigning a segment or a confidence above unresolved.",
       "eligible_for_descriptive_profiling": true,
       "eligible_for_exploratory_comparison": false,
       "eligible_for_primary_validation": false
     }
   ],
-  "decision": "Neither detector is mapped to a network segment. Both may be used only for descriptive profiling of source observations; no observed-versus-simulated or spatial SUMO comparison is permitted. Site 505 remains a medium-confidence segment candidate, not a confirmed match; site 504 remains unresolved.",
+  "decision": "Neither detector is mapped to a network segment. Both may be used only for descriptive profiling of source observations; no observed-versus-simulated or spatial SUMO comparison is permitted. Site 505 has candidate ways for further investigation, but its mapping confidence is unresolved; site 504 is also unresolved.",
   "evidence_needed_to_upgrade": [
     "DTP-confirmed CRS/datum and positional accuracy for site coordinates.",
     "Detector installation plan or authoritative statement identifying road carriageway and covered lanes.",

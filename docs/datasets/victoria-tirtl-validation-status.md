@@ -1,6 +1,6 @@
 # Relatório de validação empírica — TIRTL West Gate Bridge
 
-**Versão:** 0.1 — auditoria de bloqueios, 2026-10-27
+**Versão:** 0.2 — auditoria de mapping e bloqueios, 2026-10-27
 
 **Resultado:** nenhuma baseline SUMO foi executada; não há calibração nem validação held-out.
 
@@ -19,9 +19,9 @@ O [registro de mapping versionado](victoria-tirtl-mapping-register.json) contém
 | Detector | Candidato | Confiança | Uso principal |
 |---|---|---|---|
 | 504 EB | OSM ways 197882461 / 389828674 | `unresolved` | Profiling descritivo; sem comparação espacial |
-| 505 WB | OSM way 389828674 | `medium_confidence` candidato | Profiling descritivo; sem comparação com SUMO |
+| 505 WB | OSM way 389828674 | `unresolved` (via candidata) | Profiling descritivo; sem comparação com SUMO |
 
-O dicionário de sites não declara CRS, datum ou precisão das coordenadas. Também não há diagrama de instalação, faixa atendida ou semântica documentada de `heading`. O 505 é favorecido pelo rótulo WB, predominância de `W` e distância exploratória, mas a independência e confiabilidade dessas pistas não foram estabelecidas e elas não confirmam o trecho físico. Os dois sites podem ser usados somente para profiling descritivo dos próprios registros. Não há autorização para comparação observado-versus-simulado nem espacial com SUMO. Não existe correspondência detector→faixa. Nenhum mapping atende ao gate de validação principal.
+O dicionário de sites não declara CRS, datum ou precisão das coordenadas. Também não há diagrama de instalação, faixa atendida ou semântica documentada de `heading`. Para o site 505, rótulo WB e predominância de `W` não foram estabelecidos como pistas independentes; a distância exploratória pressupõe um CRS não confirmado e não tem parâmetros reproduzíveis. Não há base para confiança acima de `unresolved`. Os dois sites podem ser usados somente para profiling descritivo dos próprios registros. Não há autorização para comparação observado-versus-simulado nem espacial com SUMO. Não existe correspondência detector→faixa. Nenhum mapping atende ao gate de validação principal.
 
 ## 3. SUMO baseline
 
@@ -49,7 +49,7 @@ Antes da próxima tentativa, o protocolo deve registrar em versão imutável: ma
 - **O SUMO reproduz utilmente os dados reais?** Ainda não testado.
 - **Onde erra mais?** Não é possível determinar sem uma execução e medições alinhadas.
 - **A calibração melhorou? Generalizou?** Não houve calibração ou held-out.
-- **Quais detectores ficaram ruins?** Nenhum foi avaliado; 504 está unresolved e 505 é apenas candidato médio.
+- **Quais detectores ficaram ruins?** Nenhum foi avaliado; 504 e 505 permanecem unresolved.
 - **Quais hipóteses estão sem sustentação?** CRS/precisão das coordenadas, detector→via/faixa, significado dos headings, demanda/OD de fronteira e compatibilidade da velocidade agregada.
 - **Módulo empiricamente validado como gêmeo digital?** Não. Há fonte observada documentada e adapter; faltam mapping confiável, rede SUMO real, comparação, calibração e validação independente.
 

@@ -37,7 +37,7 @@ Uma consulta OSM retornou as vias unidirecionais `West Gate Freeway/M1`, ambas t
 | Site | Distância a way 197882461 | Distância a way 389828674 | Avaliação |
 |---|---:|---:|---|
 | 504 EB | 9,28 m | 8,01 m | `unresolved`; a direção declarada favorece 197882461, mas proximidade ambígua e instalação não confirmada. Não elegível para validação primária. |
-| 505 WB | 10,77 m | 6,52 m | Candidato `medium_confidence` apenas; rótulo, maioria heading W e estimativa antiga favorecem 389828674, mas instalação/direção/localização permanecem incertas. Não elegível para validação primária. |
+| 505 WB | 10,77 m | 6,52 m | `unresolved`; há way candidata, mas CRS, direção do heading, localização da instalação e independência das pistas não foram confirmados. |
 
 Os ways 197882461 e 389828674 são geometria OSM observada em 2026-10-27, não levantamento as-built da instalação nem geometria viária oficial. Suas tags one-way/lanes não demonstram que o plano óptico do sensor cruza aquele way nem qual das cinco faixas é coberta. O checksum do extract OSM é `56c0496f8dfd62038986c42e99370ece29a13a8f488dbdae8071aba5ceddf1f3`; o checksum do CSV DTP é `d588483a42115c3c25aa3d3dd66e6ab05457cde44993156f950c2d1ad254ddb7`. A proveniência completa está no [registro de mapping versionado](victoria-tirtl-mapping-register.json).
 
@@ -46,7 +46,7 @@ Os ways 197882461 e 389828674 são geometria OSM observada em 2026-10-27, não l
 - Observações mantêm latitude/longitude de origem, `location_id=tirtl-site:<id>` e CRS não especificado; a camada PostGIS não cria geometria EPSG:4326 sem CRS confirmado.
 - O adapter não popula `road_segment_id`, `intersection_id`, faixa ou confiança numérica.
 - OSM Way não é tratado como edge SUMO. A conversão OSM→SUMO e o vínculo detector→edge precisam ser revisados contra um artefato de rede versionado.
-- O site 505 é um candidato para exploração segundo a confiança média herdada, não uma correspondência confirmada; não é elegível para validação primária. O site 504 permanece `unresolved`. Ambos carecem de atribuição de via e faixa.
+- Os sites 504 e 505 permanecem `unresolved`. O 505 tem vias candidatas para investigação, mas não uma correspondência confirmada. Ambos carecem de atribuição de via e faixa.
 
 ## Semântica e qualidade dos dados
 
@@ -73,7 +73,7 @@ Os ways 197882461 e 389828674 são geometria OSM observada em 2026-10-27, não l
 
 ## Gate para SUMO
 
-O piloto só pode avançar para uma baseline numérica quando houver: (1) confirmação DTP da cobertura e direção do 505 ou documentação independente de instalação; (2) extração OSM datada com licença/atribuição, compilada e validada para a região relevante; (3) edge SUMO que cruze a seção observada, sem ambiguidade de sentido/faixa; (4) política explícita para classes 13/14, bin `150+`, lacunas e timezone; (5) demanda de entrada definida sem copiar a própria série de validação; (6) janela de validação distinta do período usado para eventual calibração. Sem esses requisitos, reportar dados reais importados e limitação de mapeamento, sem declarar baseline validada, melhoria de calibração ou gêmeo digital empiricamente validado.
+O piloto só pode avançar para uma baseline numérica quando houver: (1) confirmação do CRS/precisão e documentação independente da instalação, direção e cobertura de faixas para pelo menos um detector, suficiente para um mapping high-confidence; (2) extração OSM datada com licença/atribuição, compilada e validada para a região relevante; (3) edge SUMO que cruze a seção observada, sem ambiguidade de sentido/faixa; (4) política explícita para classes 13/14, bin `150+`, lacunas e timezone; (5) demanda de entrada definida sem copiar a própria série de validação; (6) janela de validação distinta do período usado para eventual calibração. Sem esses requisitos, reportar dados reais importados e limitação de mapeamento, sem declarar baseline validada, melhoria de calibração ou gêmeo digital empiricamente validado.
 
 ## Próxima etapa
 
