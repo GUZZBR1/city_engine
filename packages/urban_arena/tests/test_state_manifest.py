@@ -14,6 +14,7 @@ from urban_arena.state import (
     EffectiveEvent,
     StateFactory,
     StateTransitionResult,
+    allocate_housing_stock,
     canonical_hash,
     canonical_json,
 )
@@ -155,6 +156,7 @@ def test_manifest_materializes_the_versioned_aurora_synthetic_profile() -> None:
     assert params["housing"]["annual_capacity_rate"] == 0.02
     assert params["housing"]["annual_retirement_rate"] == 0.003
     assert params["housing"]["initial_units"] is None
+    assert params["housing"]["district_allocation_method"] == "proportional_to_existing_stock_largest_remainder"
     assert params["employment"]["annual_growth_rate"] == 0.01
     assert sum(params["employment"]["district_allocation"].values()) == pytest.approx(1.0)
     assert params["services"] == {
@@ -209,6 +211,31 @@ def test_manifest_rejects_horizon_beyond_contract_and_missing_materialization() 
     incomplete["parameters"] = {}
     with pytest.raises(ValidationError):
         ExperimentManifest.model_validate(incomplete)
+
+
+def test_housing_allocation_preserves_prior_shares_and_uses_lexicographic_ties() -> None:
+    proportional = allocate_housing_stock(
+        12,
+        {"centro": 3, "sul_misto": 1},
+    )
+    tied = allocate_housing_stock(
+        5,
+        {"district-b": 1, "district-c": 1, "district-a": 1},
+    )
+
+    assert proportional == {"centro": 9, "sul_misto": 3}
+    assert tied == {"district-a": 2, "district-b": 2, "district-c": 1}
+    assert sum(tied.values()) == 5
+    assert allocate_housing_stock(0, {"b": 2, "a": 1}) == {"a": 0, "b": 0}
+
+
+def test_housing_allocation_rejects_undefined_prior_shares_and_invalid_totals() -> None:
+    with pytest.raises(ValueError, match="estoque anterior zerado"):
+        allocate_housing_stock(1, {"centro": 0, "sul_misto": 0})
+    with pytest.raises(ValueError, match="inteiro não negativo"):
+        allocate_housing_stock(-1, {"centro": 1})
+    with pytest.raises(ValueError, match="inteiros não negativos"):
+        allocate_housing_stock(1, {"centro": 1.5})
 
 
 def test_state_factory_uses_housing_parameters_from_manifest() -> None:
