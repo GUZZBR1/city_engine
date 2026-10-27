@@ -1,0 +1,2 @@
+# Official SUMO applications wheel, including sumo and netconvert binaries.
+eclipse-sumo==1.28.0

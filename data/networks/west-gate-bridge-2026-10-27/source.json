@@ -1,0 +1,17 @@
+{
+  "api": "https://api.openstreetmap.org/api/0.6/map",
+  "bounds_wgs84": [
+    144.84,
+    -37.86,
+    144.95,
+    -37.8
+  ],
+  "tile_columns": 10,
+  "tile_rows": 2,
+  "tiles_fetched": 20,
+  "fetch_started_utc": "2026-10-27T20:02:48Z",
+  "fetch_finished_utc": "2026-10-27T20:04:23Z",
+  "osm_node_count": 81754,
+  "osm_highway_way_count": 18852,
+  "osm_complete_restriction_relation_count": 370
+}
