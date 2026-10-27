@@ -2,361 +2,71 @@ export type ExperimentStatus = 'queued' | 'running' | 'succeeded' | 'partial' | 
 export type ExecutionStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 export type ProvenanceKind = 'synthetic_config' | 'synthetic_generated' | 'simulated' | 'derived';
 export type MetricPeriod = 'demand_window' | 'completed_trips_through_drain';
-
-export interface MetricValue {
-  value: number | null;
-  unit: string;
-  period: MetricPeriod;
-  provenance_kind: ProvenanceKind;
-  method_version: string;
-  artifact_sha256: string;
+export interface MetricValue { value: number | null; unit: string; period: MetricPeriod; provenance_kind: ProvenanceKind; method_version: string; artifact_sha256: string; }
+export interface DeltaValue { value: number | null; unit: string; direction: 'strategy_minus_baseline'; provenance_kind: 'derived'; method_version: string; source_artifact_sha256: [string, string]; }
+export interface ArtifactReference { path: string; sha256: string; size_bytes: number; }
+export interface ExperimentAttempt { attempt: number; status: ExecutionStatus; error: string | null; artifact_sha256: string | null; started_at: string | null; finished_at: string | null; wall_clock_seconds: number; artifacts: Record<string, ArtifactReference>; seed: number | null; window_id: string | null; common_input_sha256: string | null; arm_input_sha256: string | null; sumo_engine: string | null; sumo_version: string | null; }
+export interface ArmExecution { execution_id: string; status: ExecutionStatus; attempts: ExperimentAttempt[]; result_metrics: Record<string, number | null> | null; engine_version: string | null; metric_methods: Record<string, string>; artifact_sha256: string | null; artifacts: Record<string, ArtifactReference>; result_identity: Record<string, unknown> | null; seed: number | null; window_id: string | null; common_input_sha256: string | null; arm_input_sha256: string | null; }
+export interface ExperimentPair { pair_id: string; strategy_id: string; baseline_execution_id: string; strategy_execution_id: string; window_id: string; seed: number; common_input_sha256: string; baseline_arm_input_sha256: string; strategy_arm_input_sha256: string; status: ExecutionStatus; baseline_metrics: Record<string, MetricValue> | null; strategy_metrics: Record<string, MetricValue> | null; deltas: Record<string, DeltaValue> | null; route_exposure: 'exposed' | 'not_exposed' | 'unknown'; error: string | null; artifact_files: Record<string, unknown>; executions: { baseline: ArmExecution; strategy: ArmExecution }; }
+export interface DistributionSummary { mean: number | null; sd: number | null; median: number | null; iqr: number | null; min: number | null; max: number | null; }
+export interface ConfidenceInterval { method: string; level: number; lower: number | null; upper: number | null; n: number; degrees_of_freedom: number | null; interpretation: string; multiplicity: string; }
+export interface WindowSummary { window_id: string; strategy_id: string; metric_id: string; unit: string; period: MetricPeriod; provenance_kind: 'derived'; method_version: string; n_planned: number; n_complete: number; arm_summary: { baseline: DistributionSummary; strategy: DistributionSummary }; paired_delta_summary: DistributionSummary; confidence_interval: ConfidenceInterval; selection: 'complete_pairs_only'; seed_sensitivity: string; arm_seed_sensitivity: string; paired_delta_seed_sensitivity: string; }
+export interface MultiSeedBudget { max_sumo_runs: number; max_attempts_per_execution: number; max_reproducibility_checks: number; max_wall_clock_seconds_per_run: number; max_total_wall_clock_seconds: number; admit_incomplete: boolean; }
+export interface StrategyInput { strategy_id: string; policy_version: string; policy_sha256: string; intervention: { node_id: string; phases: Array<{ movement: 'north_south' | 'all_red' | 'east_west'; duration_seconds: number }> }; }
+export interface CreateExperimentInput { arena_manifest_id: string; arena_manifest_sha256: string; round_index: number; instance_id: string; city_id: 'aurora-base-v1'; window_ids: string[]; seeds: number[]; strategies: StrategyInput[]; baseline_id: string; baseline_version: string; baseline_sha256: string; drain_limit_seconds: number; metrics: string[]; metric_tolerances: Record<string, { exact?: boolean; absolute?: number; relative?: number }>; method_version: string; budget: MultiSeedBudget; reproducibility_checks: number; selection_method: string; master_seed: number | null; primary_metrics: string[]; confidence_level: number; }
+export type ExpectedExperimentPlan = Pick<CreateExperimentInput, 'window_ids' | 'strategies' | 'seeds' | 'metrics' | 'primary_metrics'>;
+export interface PairedExperiment { experiment_id: string; dto_schema_version: '1.0'; protocol_id: 'aurora-paired-multiseed-v1'; protocol_version: 1; manifest_sha256: string; arena_manifest_id: string; arena_manifest_sha256: string; status: ExperimentStatus; planned_pairs: number; completed_pairs: number; failed_pairs: number; running_pairs: number; missing_pairs: number; missing_pair_ids: string[]; planned_executions: number; attempts: number; sumo_runs_used: number; wall_clock_seconds_used: number; reserved_wall_clock_seconds: number; cancellation_requested: boolean; stop_reason: string | null; error_code: string | null; manifest: Record<string, unknown>; limitations: string[]; pairs: ExperimentPair[]; summaries_by_window: WindowSummary[]; }
+export const PAIRED_EXPERIMENTS_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '') + '/api/v1/mobility-experiments';
+export function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'number') { if (!Number.isSafeInteger(value)) throw Error('Hash de política: intervenções aceitam somente números inteiros seguros.'); return JSON.stringify(value); }
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (typeof value === 'object') { const item = value as Record<string, unknown>; return `{${Object.keys(item).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(item[key])}`).join(',')}}`; }
+  throw Error('Hash de política: valor JSON não suportado.');
 }
-
-export interface DeltaValue {
-  value: number | null;
-  unit: string;
-  direction: 'strategy_minus_baseline';
-  provenance_kind: 'derived';
-  method_version: string;
+export async function computePolicySha256(policyId: string, version: string, intervention: unknown | null): Promise<string> {
+  if (!globalThis.crypto?.subtle) throw Error('Este navegador não disponibiliza Web Crypto para calcular os hashes do manifesto.');
+  const canonical = canonicalJson({ policy_id: policyId, policy_version: version, intervention });
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
-
-export interface ExperimentAttempt {
-  attempt: number;
-  status: ExecutionStatus;
-  error: string | null;
-  artifact_sha256: string | null;
-}
-
-export interface ExperimentPair {
-  pair_id: string;
-  strategy_id: string;
-  baseline_execution_id: string;
-  strategy_execution_id: string;
-  window_id: string;
-  seed: number;
-  common_input_sha256: string;
-  status: ExecutionStatus;
-  baseline_metrics: Record<string, MetricValue> | null;
-  strategy_metrics: Record<string, MetricValue> | null;
-  deltas: Record<string, DeltaValue> | null;
-  route_exposure: 'exposed' | 'not_exposed' | 'unknown';
-  executions: {
-    baseline: { execution_id: string; status: ExecutionStatus; attempts: ExperimentAttempt[] };
-    strategy: { execution_id: string; status: ExecutionStatus; attempts: ExperimentAttempt[] };
-  };
-}
-
-export interface DistributionSummary {
-  mean: number | null;
-  sd: number | null;
-  median: number | null;
-  iqr: number | null;
-  min: number | null;
-  max: number | null;
-}
-
-export interface ConfidenceInterval {
-  method: string;
-  level: number;
-  lower: number | null;
-  upper: number | null;
-  n: number;
-  degrees_of_freedom: number | null;
-  interpretation: string;
-  multiplicity: string;
-}
-
-export interface WindowSummary {
-  window_id: string;
-  strategy_id: string;
-  metric_id: string;
-  unit: string;
-  period: MetricPeriod;
-  provenance_kind: ProvenanceKind;
-  method_version: string;
-  n_planned: number;
-  n_complete: number;
-  arm_summary: DistributionSummary;
-  paired_delta_summary: DistributionSummary;
-  confidence_interval: ConfidenceInterval;
-}
-
-export interface PairedExperiment {
-  experiment_id: string;
-  dto_schema_version: '1.0';
-  protocol_id: 'aurora-paired-multiseed-v1';
-  protocol_version: 1;
-  manifest_sha256: string;
-  arena_manifest_id: string;
-  arena_manifest_sha256: string;
-  status: ExperimentStatus;
-  planned_pairs: number;
-  completed_pairs: number;
-  failed_pairs: number;
-  running_pairs: number;
-  missing_pairs: number;
-  missing_pair_ids: string[];
-  limitations: string[];
-  pairs: ExperimentPair[];
-  summaries_by_window: WindowSummary[];
-}
-
-export interface CreateExperimentInput {
-  arena_manifest_id: string;
-  arena_manifest_sha256: string;
-  round_index: number;
-  instance_id: string;
-  window_ids: string[];
-  strategy_ids: string[];
-  baseline_strategy_id: string;
-  seeds: number[];
-  seed_scope: 'sumo_operational_randomness';
-  seed_selection_method: string;
-  master_seed: number | null;
-  primary_metric_ids: string[];
-  secondary_metric_ids: string[];
-  drain_limit_seconds: number;
-  max_sumo_runs: number;
-  max_attempts_per_execution: number;
-  max_reproducibility_checks: number;
-  max_wall_clock_seconds_per_run: number;
-  max_total_wall_clock_seconds: number;
-}
-
-export type ExpectedExperimentPlan = Pick<CreateExperimentInput, 'window_ids' | 'strategy_ids' | 'seeds' | 'primary_metric_ids' | 'secondary_metric_ids'>;
-
-// The specification fixes the response DTO but deliberately leaves endpoints and
-// create-command fields open. Keep this provisional request boundary in one client
-// module so the sibling API branch can align it without changing the v1.0 DTO parser.
-export const PAIRED_EXPERIMENTS_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '') + '/api/v1/paired-multiseed-experiments';
-
-function record(value: unknown, path: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error(`DTO inválido: ${path} deve ser um objeto.`);
-  return value as Record<string, unknown>;
-}
-function string(value: unknown, path: string): string {
-  if (typeof value !== 'string' || value.length === 0) throw new Error(`DTO inválido: ${path} deve ser texto não vazio.`);
-  return value;
-}
-function integer(value: unknown, path: string, minimum = 0): number {
-  if (!Number.isSafeInteger(value) || (value as number) < minimum) throw new Error(`DTO inválido: ${path} deve ser inteiro >= ${minimum}.`);
-  return value as number;
-}
-function finiteOrNull(value: unknown, path: string): number | null {
-  if (value === null) return null;
-  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`DTO inválido: ${path} deve ser número finito ou null.`);
-  return value;
-}
-function oneOf<T extends string>(value: unknown, choices: readonly T[], path: string): T {
-  if (typeof value !== 'string' || !choices.includes(value as T)) throw new Error(`DTO inválido: ${path} não pertence ao contrato v1.0.`);
-  return value as T;
-}
-function hash(value: unknown, path: string): string {
-  const result = string(value, path);
-  if (!/^[a-f0-9]{64}$/.test(result)) throw new Error(`DTO inválido: ${path} deve ser SHA-256 hexadecimal lowercase.`);
-  return result;
-}
-const experimentStatuses = ['queued', 'running', 'succeeded', 'partial', 'failed', 'cancelled'] as const;
-const executionStatuses = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const;
-const provenanceKinds = ['synthetic_config', 'synthetic_generated', 'simulated', 'derived'] as const;
+const expStates = ['queued', 'running', 'succeeded', 'partial', 'failed', 'cancelled'] as const;
+const execStates = ['queued', 'running', 'succeeded', 'failed', 'cancelled'] as const;
 const periods = ['demand_window', 'completed_trips_through_drain'] as const;
-const expectedPeriods: Record<string, MetricPeriod> = {
-  mean_queue_length_meters: 'demand_window',
-  mean_travel_time_seconds: 'completed_trips_through_drain',
-  mean_speed_kmh: 'completed_trips_through_drain',
-  trips_completed: 'completed_trips_through_drain',
-  trips_not_completed: 'completed_trips_through_drain',
-  trips_requested: 'demand_window',
-};
-
-function parseMetricMap(value: unknown, path: string, delta = false): Record<string, MetricValue> | Record<string, DeltaValue> | null {
-  if (value === null) return null;
-  const source = record(value, path);
-  const parsed: Record<string, MetricValue | DeltaValue> = {};
-  for (const [id, raw] of Object.entries(source)) {
-    const metric = record(raw, `${path}.${id}`);
-    if (delta) {
-      if (metric.direction !== 'strategy_minus_baseline' || metric.provenance_kind !== 'derived') throw new Error(`DTO inválido: ${path}.${id} deve ser um delta derivado estratégia − baseline.`);
-      parsed[id] = { value: finiteOrNull(metric.value, `${path}.${id}.value`), unit: string(metric.unit, `${path}.${id}.unit`), direction: 'strategy_minus_baseline', provenance_kind: 'derived', method_version: string(metric.method_version, `${path}.${id}.method_version`) };
-    } else {
-      const period = oneOf(metric.period, periods, `${path}.${id}.period`);
-      if (expectedPeriods[id] && period !== expectedPeriods[id]) throw new Error(`DTO inválido: ${path}.${id}.period diverge da semântica temporal documentada.`);
-      parsed[id] = { value: finiteOrNull(metric.value, `${path}.${id}.value`), unit: string(metric.unit, `${path}.${id}.unit`), period, provenance_kind: oneOf(metric.provenance_kind, provenanceKinds, `${path}.${id}.provenance_kind`), method_version: string(metric.method_version, `${path}.${id}.method_version`), artifact_sha256: hash(metric.artifact_sha256, `${path}.${id}.artifact_sha256`) };
-    }
-  }
-  return parsed as Record<string, MetricValue> | Record<string, DeltaValue>;
-}
-
-function parseAttempts(value: unknown, path: string): ExperimentAttempt[] {
-  if (!Array.isArray(value)) throw new Error(`DTO inválido: ${path} deve ser uma lista.`);
-  const attempts = value.map((raw, index) => {
-    const item = record(raw, `${path}[${index}]`);
-    if (item.error !== null && typeof item.error !== 'string') throw new Error(`DTO inválido: ${path}[${index}].error deve ser texto ou null.`);
-    return { attempt: integer(item.attempt, `${path}[${index}].attempt`, 1), status: oneOf(item.status, executionStatuses, `${path}[${index}].status`), error: item.error as string | null, artifact_sha256: item.artifact_sha256 === null ? null : hash(item.artifact_sha256, `${path}[${index}].artifact_sha256`) };
-  });
-  if (attempts.some((attempt, index) => attempt.attempt !== index + 1)) throw new Error(`DTO inválido: ${path} deve ter ordinais únicos, crescentes e iniciados em 1.`);
-  return attempts;
-}
-
-function parsePair(value: unknown, index: number): ExperimentPair {
-  const path = `experiment.pairs[${index}]`;
-  const pair = record(value, path);
-  const executions = record(pair.executions, `${path}.executions`);
-  const parseExecution = (key: 'baseline' | 'strategy') => {
-    const execution = record(executions[key], `${path}.executions.${key}`);
-    const status = oneOf(execution.status, executionStatuses, `${path}.executions.${key}.status`);
-    const attempts = parseAttempts(execution.attempts, `${path}.executions.${key}.attempts`);
-    const finalAttemptStatus = attempts.at(-1)?.status;
-    if (attempts.length && finalAttemptStatus !== status) throw new Error(`DTO inválido: ${path}.executions.${key} diverge do estado de sua tentativa mais recente.`);
-    return { execution_id: string(execution.execution_id, `${path}.executions.${key}.execution_id`), status, attempts };
-  };
-  const status = oneOf(pair.status, executionStatuses, `${path}.status`);
-  const baselineExecution = parseExecution('baseline');
-  const strategyExecution = parseExecution('strategy');
-  if (status === 'running' && baselineExecution.status !== 'running' && strategyExecution.status !== 'running') throw new Error(`DTO inválido: pair running precisa de ao menos um braço running.`);
-  if (pair.baseline_execution_id !== baselineExecution.execution_id || pair.strategy_execution_id !== strategyExecution.execution_id) throw new Error(`DTO inválido: ${path} IDs planos e aninhados das execuções divergem.`);
-  const baselineMetrics = parseMetricMap(pair.baseline_metrics, `${path}.baseline_metrics`) as Record<string, MetricValue> | null;
-  const strategyMetrics = parseMetricMap(pair.strategy_metrics, `${path}.strategy_metrics`) as Record<string, MetricValue> | null;
-  const reportedDeltas = parseMetricMap(pair.deltas, `${path}.deltas`, true) as Record<string, DeltaValue> | null;
-  // A non-succeeded pair may retain completed-arm metrics, but it cannot
-  // contribute a paired delta even when both arm executions succeeded.
-  const deltas = status === 'succeeded' ? reportedDeltas : null;
-  const armHasInvalidMetrics = (execution: typeof baselineExecution, metrics: Record<string, MetricValue> | null) => execution.status === 'succeeded' ? metrics === null : metrics !== null;
-  if (armHasInvalidMetrics(baselineExecution, baselineMetrics) || armHasInvalidMetrics(strategyExecution, strategyMetrics)) throw new Error(`DTO inválido: cada braço concluído deve manter suas métricas; braços incompletos devem ter métricas null.`);
-  if (status === 'succeeded' && (!baselineMetrics || !strategyMetrics || !deltas || baselineExecution.status !== 'succeeded' || strategyExecution.status !== 'succeeded')) throw new Error(`DTO inválido: ${path} bem-sucedido precisa dos dois braços concluídos e dos deltas.`);
-  if (deltas !== null && (baselineExecution.status !== 'succeeded' || strategyExecution.status !== 'succeeded')) throw new Error(`DTO inválido: ${path} não pode expor delta sem sucesso nos dois braços.`);
-  return { pair_id: string(pair.pair_id, `${path}.pair_id`), strategy_id: string(pair.strategy_id, `${path}.strategy_id`), baseline_execution_id: string(pair.baseline_execution_id, `${path}.baseline_execution_id`), strategy_execution_id: string(pair.strategy_execution_id, `${path}.strategy_execution_id`), window_id: string(pair.window_id, `${path}.window_id`), seed: integer(pair.seed, `${path}.seed`), common_input_sha256: hash(pair.common_input_sha256, `${path}.common_input_sha256`), status, baseline_metrics: baselineMetrics, strategy_metrics: strategyMetrics, deltas, route_exposure: oneOf(pair.route_exposure, ['exposed', 'not_exposed', 'unknown'] as const, `${path}.route_exposure`), executions: { baseline: baselineExecution, strategy: strategyExecution } };
-}
-
+const expectedPeriods: Record<string, MetricPeriod> = { trips_requested: 'demand_window', trips_completed: 'completed_trips_through_drain', trips_not_completed: 'completed_trips_through_drain', mean_travel_time_seconds: 'completed_trips_through_drain', mean_speed_kmh: 'completed_trips_through_drain', mean_queue_length_meters: 'demand_window' };
+const expectedUnits: Record<string, string> = { trips_requested: 'trips', trips_completed: 'trips', trips_not_completed: 'trips', mean_travel_time_seconds: 'seconds', mean_speed_kmh: 'km/h', mean_queue_length_meters: 'meters' };
+function obj(v: unknown, p: string): Record<string, any> { if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error(`DTO inválido: ${p} deve ser objeto.`); return v as Record<string, any>; }
+function str(v: unknown, p: string): string { if (typeof v !== 'string' || !v.length) throw Error(`DTO inválido: ${p} deve ser texto não vazio.`); return v; }
+function int(v: unknown, p: string, min = 0): number { if (!Number.isSafeInteger(v) || (v as number) < min) throw Error(`DTO inválido: ${p} deve ser inteiro >= ${min}.`); return v as number; }
+function num(v: unknown, p: string): number { if (typeof v !== 'number' || !Number.isFinite(v)) throw Error(`DTO inválido: ${p} deve ser número finito.`); return v; }
+function nullableNum(v: unknown, p: string): number | null { return v === null ? null : num(v, p); }
+function hash(v: unknown, p: string): string { const s = str(v, p); if (!/^[a-f0-9]{64}$/.test(s)) throw Error(`DTO inválido: ${p} deve ser SHA-256 hexadecimal lowercase.`); return s; }
+function enumValue<T extends string>(v: unknown, values: readonly T[], p: string): T { if (typeof v !== 'string' || !values.includes(v as T)) throw Error(`DTO inválido: ${p} fora do contrato da API.`); return v as T; }
+function map<T>(v: unknown, p: string, parse: (x: unknown, k: string) => T): Record<string, T> { const source = obj(v, p); return Object.fromEntries(Object.entries(source).map(([k, x]) => [k, parse(x, `${p}.${k}`)])); }
+function artifactMap(v: unknown, p: string): Record<string, ArtifactReference> { return map(v, p, (raw, path) => { const a = obj(raw, path); return { path: str(a.path, `${path}.path`), sha256: hash(a.sha256, `${path}.sha256`), size_bytes: int(a.size_bytes, `${path}.size_bytes`) }; }); }
+function metricMap(v: unknown, p: string): Record<string, MetricValue> | null { const source = obj(v ?? {}, p); if (!Object.keys(source).length) return null; return map(source, p, (raw, path) => { const m = obj(raw, path); const id = path.slice(p.length + 1); const period = enumValue(m.period, periods, `${path}.period`); const unit = str(m.unit, `${path}.unit`); const provenance = enumValue(m.provenance_kind, ['synthetic_config', 'synthetic_generated', 'simulated'] as const, `${path}.provenance_kind`); if ((expectedPeriods[id] && expectedPeriods[id] !== period) || (expectedUnits[id] && expectedUnits[id] !== unit) || (id === 'trips_requested' ? provenance !== 'synthetic_generated' : provenance !== 'simulated')) throw Error(`DTO inválido: ${path} diverge da semântica de período, unidade ou proveniência da métrica.`); return { value: nullableNum(m.value, `${path}.value`), unit, period, provenance_kind: provenance, method_version: str(m.method_version, `${path}.method_version`), artifact_sha256: hash(m.artifact_sha256, `${path}.artifact_sha256`) }; }); }
+function deltaMap(v: unknown, p: string): Record<string, DeltaValue> | null { const source = obj(v ?? {}, p); if (!Object.keys(source).length) return null; return map(source, p, (raw, path) => { const d = obj(raw, path); if (!Array.isArray(d.source_artifact_sha256) || d.source_artifact_sha256.length !== 2) throw Error(`DTO inválido: ${path}.source_artifact_sha256 deve conter os dois artefatos de origem.`); return { value: nullableNum(d.value, `${path}.value`), unit: str(d.unit, `${path}.unit`), direction: enumValue(d.direction, ['strategy_minus_baseline'] as const, `${path}.direction`), provenance_kind: enumValue(d.provenance_kind, ['derived'] as const, `${path}.provenance_kind`), method_version: str(d.method_version, `${path}.method_version`), source_artifact_sha256: [hash(d.source_artifact_sha256[0], `${path}.source_artifact_sha256[0]`), hash(d.source_artifact_sha256[1], `${path}.source_artifact_sha256[1]`)] }; }); }
+function parseAttempts(v: unknown, p: string): ExperimentAttempt[] { if (!Array.isArray(v)) throw Error(`DTO inválido: ${p} deve ser lista.`); const a = v.map((raw, i) => { const x = obj(raw, `${p}[${i}]`); const nullableString = (key: string) => x[key] === null ? null : str(x[key], `${p}[${i}].${key}`); return { attempt: int(x.attempt, `${p}[${i}].attempt`, 1), status: enumValue(x.status, execStates, `${p}[${i}].status`), error: nullableString('error'), artifact_sha256: x.artifact_sha256 === null ? null : hash(x.artifact_sha256, `${p}[${i}].artifact_sha256`), started_at: nullableString('started_at'), finished_at: nullableString('finished_at'), wall_clock_seconds: num(x.wall_clock_seconds, `${p}[${i}].wall_clock_seconds`), artifacts: artifactMap(x.artifacts, `${p}[${i}].artifacts`), seed: x.seed === null ? null : int(x.seed, `${p}[${i}].seed`), window_id: x.window_id === null ? null : str(x.window_id, `${p}[${i}].window_id`), common_input_sha256: x.common_input_sha256 === null ? null : hash(x.common_input_sha256, `${p}[${i}].common_input_sha256`), arm_input_sha256: x.arm_input_sha256 === null ? null : hash(x.arm_input_sha256, `${p}[${i}].arm_input_sha256`), sumo_engine: x.sumo_engine === null ? null : str(x.sumo_engine, `${p}[${i}].sumo_engine`), sumo_version: x.sumo_version === null ? null : str(x.sumo_version, `${p}[${i}].sumo_version`) }; }); if (a.some((x, i) => x.attempt !== i + 1) || a.some((_x, i) => i > 0 && a[i - 1].status !== 'failed' && a[i - 1].status !== 'cancelled')) throw Error(`DTO inválido: ${p} deve ter ordinais crescentes e tentativas anteriores terminais recuperáveis.`); if (a.length && !['queued', 'running'].includes(a.at(-1)!.status)) { /* execution status checked by caller */ } return a; }
+function parseArm(v: unknown, p: string): ArmExecution { const x = obj(v, p); const status = enumValue(x.status, execStates, `${p}.status`); const attempts = parseAttempts(x.attempts, `${p}.attempts`); if (attempts.length && attempts.at(-1)!.status !== status && !(status === 'queued' && ['failed','cancelled'].includes(attempts.at(-1)!.status))) throw Error(`DTO inválido: ${p} diverge da tentativa mais recente.`); const result = x.result_metrics === null ? null : map(x.result_metrics, `${p}.result_metrics`, (n, path) => nullableNum(n, path)); return { execution_id: str(x.execution_id, `${p}.execution_id`), status, attempts, result_metrics: result, engine_version: x.engine_version === null ? null : str(x.engine_version, `${p}.engine_version`), metric_methods: map(x.metric_methods, `${p}.metric_methods`, (v, path) => str(v, path)), artifact_sha256: x.artifact_sha256 === null ? null : hash(x.artifact_sha256, `${p}.artifact_sha256`), artifacts: artifactMap(x.artifacts, `${p}.artifacts`), result_identity: x.result_identity === null ? null : obj(x.result_identity, `${p}.result_identity`), seed: x.seed === null ? null : int(x.seed, `${p}.seed`), window_id: x.window_id === null ? null : str(x.window_id, `${p}.window_id`), common_input_sha256: x.common_input_sha256 === null ? null : hash(x.common_input_sha256, `${p}.common_input_sha256`), arm_input_sha256: x.arm_input_sha256 === null ? null : hash(x.arm_input_sha256, `${p}.arm_input_sha256`) }; }
+function parsePair(v: unknown, i: number): ExperimentPair { const p = `experiment.pairs[${i}]`; const x = obj(v, p); const executions = obj(x.executions, `${p}.executions`); const baseline = parseArm(executions.baseline, `${p}.executions.baseline`); const strategy = parseArm(executions.strategy, `${p}.executions.strategy`); const status = enumValue(x.status, execStates, `${p}.status`); if (x.baseline_execution_id !== baseline.execution_id || x.strategy_execution_id !== strategy.execution_id) throw Error(`DTO inválido: ${p} IDs planos e aninhados divergem.`); if (status === 'running' && baseline.status !== 'running' && strategy.status !== 'running') throw Error(`DTO inválido: ${p} running requer algum braço running.`); const bm = metricMap(x.baseline_metrics, `${p}.baseline_metrics`); const sm = metricMap(x.strategy_metrics, `${p}.strategy_metrics`); const reported = deltaMap(x.deltas, `${p}.deltas`); if (status === 'succeeded' && (baseline.status !== 'succeeded' || strategy.status !== 'succeeded' || !bm || !sm || !reported)) throw Error(`DTO inválido: ${p} succeeded precisa de dois braços e métricas pareadas.`); if (status !== 'succeeded' && (bm || sm || reported)) throw Error(`DTO inválido: par não sucedido não pode expor métricas pareadas; use result_metrics por braço.`); if (reported) for (const [id, delta] of Object.entries(reported)) { if (delta.source_artifact_sha256[0] !== bm?.[id]?.artifact_sha256 || delta.source_artifact_sha256[1] !== sm?.[id]?.artifact_sha256) throw Error(`DTO inválido: ${p}.deltas.${id} não referencia os artefatos dos dois braços.`); } const deltas = status === 'succeeded' ? reported : null; return { pair_id: str(x.pair_id, `${p}.pair_id`), strategy_id: str(x.strategy_id, `${p}.strategy_id`), baseline_execution_id: str(x.baseline_execution_id, `${p}.baseline_execution_id`), strategy_execution_id: str(x.strategy_execution_id, `${p}.strategy_execution_id`), window_id: str(x.window_id, `${p}.window_id`), seed: int(x.seed, `${p}.seed`), common_input_sha256: hash(x.common_input_sha256, `${p}.common_input_sha256`), baseline_arm_input_sha256: hash(x.baseline_arm_input_sha256, `${p}.baseline_arm_input_sha256`), strategy_arm_input_sha256: hash(x.strategy_arm_input_sha256, `${p}.strategy_arm_input_sha256`), status, baseline_metrics: bm, strategy_metrics: sm, deltas, route_exposure: enumValue(x.route_exposure, ['exposed', 'not_exposed', 'unknown'] as const, `${p}.route_exposure`), error: x.error === null ? null : str(x.error, `${p}.error`), artifact_files: obj(x.artifact_files, `${p}.artifact_files`), executions: { baseline, strategy } }; }
+function distribution(v: unknown, p: string): DistributionSummary { const x = obj(v, p); return { mean: nullableNum(x.mean, `${p}.mean`), sd: nullableNum(x.sd, `${p}.sd`), median: nullableNum(x.median, `${p}.median`), iqr: nullableNum(x.iqr, `${p}.iqr`), min: nullableNum(x.min, `${p}.min`), max: nullableNum(x.max, `${p}.max`) }; }
 export type PairOutcome = 'completed' | 'running' | 'failed' | 'missing';
-export function pairOutcome(pair: ExperimentPair): PairOutcome {
-  if (pair.status === 'succeeded') return 'completed';
-  if (pair.status === 'running') return 'running';
-  if (pair.status === 'failed' || pair.status === 'cancelled') return 'failed';
-  return 'missing';
+export function pairOutcome(pair: ExperimentPair): PairOutcome { return pair.status === 'succeeded' ? 'completed' : pair.status === 'running' ? 'running' : pair.status === 'queued' ? 'missing' : 'failed'; }
+function parseSummary(v: unknown, i: number): WindowSummary { const p = `experiment.summaries_by_window[${i}]`; const x = obj(v, p); const metric = str(x.metric_id, `${p}.metric_id`); const period = enumValue(x.period, periods, `${p}.period`); if (expectedPeriods[metric] && expectedPeriods[metric] !== period) throw Error(`DTO inválido: ${p}.period diverge da métrica.`); if (x.provenance_kind !== 'derived' || x.selection !== 'complete_pairs_only') throw Error(`DTO inválido: ${p} exige proveniência derived e selection complete_pairs_only.`); const arms = obj(x.arm_summary, `${p}.arm_summary`); const ci = obj(x.confidence_interval, `${p}.confidence_interval`); const n = int(ci.n, `${p}.confidence_interval.n`); const df = ci.degrees_of_freedom === null ? null : int(ci.degrees_of_freedom, `${p}.confidence_interval.degrees_of_freedom`); const lower = nullableNum(ci.lower, `${p}.confidence_interval.lower`); const upper = nullableNum(ci.upper, `${p}.confidence_interval.upper`); const np = int(x.n_planned, `${p}.n_planned`); const nc = int(x.n_complete, `${p}.n_complete`); if (n !== nc || n > np || (n >= 2 ? df !== n - 1 : df !== null) || ((lower === null) !== (upper === null)) || (lower !== null && (n < 2 || nc !== np))) throw Error(`DTO inválido: ${p} IC incompatível com pares completos.`); return { window_id: str(x.window_id, `${p}.window_id`), strategy_id: str(x.strategy_id, `${p}.strategy_id`), metric_id: metric, unit: str(x.unit, `${p}.unit`), period, provenance_kind: 'derived', method_version: str(x.method_version, `${p}.method_version`), n_planned: np, n_complete: nc, arm_summary: { baseline: distribution(arms.baseline, `${p}.arm_summary.baseline`), strategy: distribution(arms.strategy, `${p}.arm_summary.strategy`) }, paired_delta_summary: distribution(x.paired_delta_summary, `${p}.paired_delta_summary`), confidence_interval: { method: enumValue(ci.method, ['student_t_paired'] as const, `${p}.confidence_interval.method`), level: num(ci.level, `${p}.confidence_interval.level`), lower, upper, n, degrees_of_freedom: df, interpretation: str(ci.interpretation, `${p}.confidence_interval.interpretation`), multiplicity: str(ci.multiplicity, `${p}.confidence_interval.multiplicity`) }, selection: 'complete_pairs_only', seed_sensitivity: str(x.seed_sensitivity, `${p}.seed_sensitivity`), arm_seed_sensitivity: str(x.arm_seed_sensitivity, `${p}.arm_seed_sensitivity`), paired_delta_seed_sensitivity: str(x.paired_delta_seed_sensitivity, `${p}.paired_delta_seed_sensitivity`) }; }
+function validatePlan(plan: ExpectedExperimentPlan, pairs: ExperimentPair[], summaries: WindowSummary[], planned: number, complete: boolean) {
+  const expected = new Set(plan.strategies.flatMap(strategy => plan.window_ids.flatMap(window => plan.seeds.map(seed => `${strategy.strategy_id}\0${window}\0${seed}`))));
+  const cells = new Set(pairs.map(pair => `${pair.strategy_id}\0${pair.window_id}\0${pair.seed}`));
+  const differs = complete && (cells.size !== expected.size || [...expected].some(cell => !cells.has(cell))); if (expected.size !== planned || differs || [...cells].some(cell => !expected.has(cell))) throw Error('DTO inválido: pares não correspondem ao plano congelado.');
+  const metrics = new Set(plan.metrics);
+  if (summaries.some(summary => !plan.window_ids.includes(summary.window_id) || !plan.strategies.some(strategy => strategy.strategy_id === summary.strategy_id) || !metrics.has(summary.metric_id))) throw Error('DTO inválido: resumo fora dos eixos do manifesto.');
 }
+export function parsePairedExperiment(value: unknown, expectedPlan?: ExpectedExperimentPlan): PairedExperiment { const env = obj(value, 'response'); const x = obj(env.experiment, 'response.experiment'); if (x.dto_schema_version !== '1.0' || x.protocol_id !== 'aurora-paired-multiseed-v1' || x.protocol_version !== 1) throw Error('Contrato incompatível: versão DTO/protocolo não suportada.'); const manifest = obj(x.manifest, 'experiment.manifest'); const status = enumValue(x.status, expStates, 'experiment.status'); if (!Array.isArray(x.pairs) || !Array.isArray(x.summaries_by_window) || !Array.isArray(x.limitations) || !Array.isArray(x.missing_pair_ids)) throw Error('DTO inválido: listas obrigatórias ausentes.'); const counts = ['planned_pairs','completed_pairs','failed_pairs','running_pairs','missing_pairs'] as const; const c = Object.fromEntries(counts.map(k => [k, int(x[k], `experiment.${k}`)])) as Record<typeof counts[number], number>; if (c.planned_pairs !== c.completed_pairs+c.failed_pairs+c.running_pairs+c.missing_pairs) throw Error('DTO inválido: contadores não reconciliam.'); const pairs = x.pairs.map(parsePair); if (pairs.length !== c.planned_pairs) throw Error('DTO inválido: API deve incluir todas as linhas planejadas.'); const ids = new Set<string>(), cells = new Set<string>(); for (const p of pairs) { const cell=`${p.strategy_id}\0${p.window_id}\0${p.seed}`; if(ids.has(p.pair_id)||cells.has(cell)) throw Error('DTO inválido: par/combinação duplicada.'); ids.add(p.pair_id); cells.add(cell); }
+const classify=(s:ExecutionStatus)=>s==='queued'?'missing':s==='running'?'running':s==='succeeded'?'completed':'failed'; const actual={completed:pairs.filter(p=>classify(p.status)==='completed').length,failed:pairs.filter(p=>classify(p.status)==='failed').length,running:pairs.filter(p=>classify(p.status)==='running').length,missing:pairs.filter(p=>classify(p.status)==='missing').length}; if(actual.completed!==c.completed_pairs||actual.failed!==c.failed_pairs||actual.running!==c.running_pairs||actual.missing!==c.missing_pairs) throw Error('DTO inválido: contadores divergem dos estados das linhas.'); const missing=x.missing_pair_ids.map((v:any,i:number)=>str(v,`experiment.missing_pair_ids[${i}]`)); const expectedMissing=pairs.filter(p=>p.status==='queued').map(p=>p.pair_id).sort(); if(new Set(missing).size!==missing.length||missing.sort().join('\0')!==expectedMissing.join('\0')) throw Error('DTO inválido: missing_pair_ids não lista exatamente os pares queued.'); if(status==='succeeded'&&actual.completed!==c.planned_pairs) throw Error('DTO inválido: succeeded com pares incompletos.'); if(status==='queued'&&actual.running>0) throw Error('DTO inválido: queued contém par em execução.'); if(['partial','cancelled'].includes(status)&&actual.running>0) throw Error('DTO inválido: estado terminal com pares ativos.'); if(status==='failed'&&actual.running>0) throw Error('DTO inválido: failed com pares ativos.');
+const windows=new Set(pairs.map(p=>p.window_id)), strategies=new Set(pairs.map(p=>p.strategy_id)), seeds=new Set(pairs.map(p=>p.seed)); if(windows.size*strategies.size*seeds.size!==c.planned_pairs) throw Error('DTO inválido: cardinalidade do produto janela×estratégia×seed diverge.'); const plan=expectedPlan ?? {window_ids:Array.isArray(manifest.window_ids)?manifest.window_ids:[], strategies:Array.isArray(manifest.strategies)?manifest.strategies:[], seeds:Array.isArray(manifest.seeds)?manifest.seeds:[], metrics:Array.isArray(manifest.metrics)?manifest.metrics:[], primary_metrics:Array.isArray(manifest.primary_metrics)?manifest.primary_metrics:[]} as ExpectedExperimentPlan; if(!plan.window_ids.length||!plan.strategies.length||!plan.seeds.length||!plan.metrics.length) throw Error('DTO inválido: manifesto não contém eixos/métricas suficientes para validar o plano.'); if(expectedPlan){const same=(a:string[],b:unknown)=>Array.isArray(b)&&a.length===b.length&&[...a].sort().every((v,i)=>v===[...b].sort()[i]); if(!same(expectedPlan.window_ids,manifest.window_ids)||!same(expectedPlan.seeds.map(String),Array.isArray(manifest.seeds)?manifest.seeds.map(String):manifest.seeds)||!same(expectedPlan.metrics,manifest.metrics)||!same(expectedPlan.primary_metrics,manifest.primary_metrics)) throw Error('DTO inválido: manifesto retornado diverge do POST solicitado.'); const actualStrategies=Array.isArray(manifest.strategies)?manifest.strategies:[]; if(expectedPlan.strategies.length!==actualStrategies.length||expectedPlan.strategies.some(item=>!actualStrategies.some((actual:any)=>actual.strategy_id===item.strategy_id&&actual.policy_version===item.policy_version&&actual.policy_sha256===item.policy_sha256&&canonicalJson(actual.intervention)===canonicalJson(item.intervention)))) throw Error('DTO inválido: políticas congeladas divergem do POST solicitado.');}
+const summaries=x.summaries_by_window.map(parseSummary); validatePlan(plan,pairs,summaries,c.planned_pairs,true); const plannedBy=new Map<string,number>(), completedBy=new Map<string,number>(); for(const p of pairs){const k=`${p.window_id}\0${p.strategy_id}`; plannedBy.set(k,(plannedBy.get(k)||0)+1); if(p.status==='succeeded') completedBy.set(k,(completedBy.get(k)||0)+1);} const seen=new Set<string>(); for(const s of summaries){const key=`${s.window_id}\0${s.strategy_id}`, k=`${key}\0${s.metric_id}`; if(seen.has(k)) throw Error('DTO inválido: resumo duplicado.'); seen.add(k); const available=pairs.filter(pair=>pair.window_id===s.window_id&&pair.strategy_id===s.strategy_id&&pair.status==='succeeded'&&pair.deltas?.[s.metric_id]?.value!==null&&pair.deltas?.[s.metric_id]!==undefined).length; if(s.n_planned!==plannedBy.get(key)||s.n_complete!==available||s.n_complete>(completedBy.get(key)||0)) throw Error('DTO inválido: n do resumo diverge dos deltas observáveis.'); }
+const nullableString=(key:string)=>x[key]===null?null:str(x[key],`experiment.${key}`); return {experiment_id:str(x.experiment_id,'experiment.experiment_id'),dto_schema_version:'1.0',protocol_id:'aurora-paired-multiseed-v1',protocol_version:1,manifest_sha256:hash(x.manifest_sha256,'experiment.manifest_sha256'),arena_manifest_id:str(x.arena_manifest_id,'experiment.arena_manifest_id'),arena_manifest_sha256:hash(x.arena_manifest_sha256,'experiment.arena_manifest_sha256'),status,...c,missing_pair_ids:missing,planned_executions:int(x.planned_executions,'experiment.planned_executions'),attempts:int(x.attempts,'experiment.attempts'),sumo_runs_used:int(x.sumo_runs_used,'experiment.sumo_runs_used'),wall_clock_seconds_used:num(x.wall_clock_seconds_used,'experiment.wall_clock_seconds_used'),reserved_wall_clock_seconds:num(x.reserved_wall_clock_seconds,'experiment.reserved_wall_clock_seconds'),cancellation_requested:typeof x.cancellation_requested==='boolean'?x.cancellation_requested:(()=>{throw Error('DTO inválido: cancellation_requested deve ser booleano.')})(),stop_reason:nullableString('stop_reason'),error_code:nullableString('error_code'),manifest,limitations:x.limitations.map((v:any,i:number)=>str(v,`experiment.limitations[${i}]`)),pairs,summaries_by_window:summaries}; }
+async function requestJson(url:string,init:RequestInit):Promise<unknown>{const response=await fetch(url,{...init,headers:{Accept:'application/json','Content-Type':'application/json',...init.headers}}); let body:unknown; try{body=await response.json();}catch{if(!response.ok)throw Error(`A API respondeu com erro HTTP ${response.status}.`);throw Error('A API retornou resposta que não é JSON válido.');} if(!response.ok){const detail=(body as any)?.detail;throw Error(typeof detail==='string'?detail:`A API respondeu com erro HTTP ${response.status}.`);} return body;}
+export async function createPairedExperiment(input:CreateExperimentInput):Promise<PairedExperiment>{return parsePairedExperiment(await requestJson(PAIRED_EXPERIMENTS_URL,{method:'POST',body:JSON.stringify(input)}),input);}
+export async function fetchPairedExperiment(id:string,signal?:AbortSignal,expectedPlan?:ExpectedExperimentPlan):Promise<PairedExperiment>{const parsed=parsePairedExperiment(await requestJson(`${PAIRED_EXPERIMENTS_URL}/${encodeURIComponent(id)}`,{method:'GET',signal}),expectedPlan);if(parsed.experiment_id!==id)throw Error('A API retornou outro experimento durante o acompanhamento.');return parsed;}
 
-function parseDistribution(value: unknown, path: string): DistributionSummary {
-  const summary = record(value, path);
-  return { mean: finiteOrNull(summary.mean, `${path}.mean`), sd: finiteOrNull(summary.sd, `${path}.sd`), median: finiteOrNull(summary.median, `${path}.median`), iqr: finiteOrNull(summary.iqr, `${path}.iqr`), min: finiteOrNull(summary.min, `${path}.min`), max: finiteOrNull(summary.max, `${path}.max`) };
-}
-function parseWindowSummary(value: unknown, index: number): WindowSummary {
-  const path = `experiment.summaries_by_window[${index}]`;
-  const item = record(value, path);
-  const ci = record(item.confidence_interval, `${path}.confidence_interval`);
-  const method = string(ci.method, `${path}.confidence_interval.method`);
-  if (method !== 'student_t_paired') throw new Error(`DTO inválido: ${path}.confidence_interval.method deve ser student_t_paired no método primário v1.`);
-  const level = finiteOrNull(ci.level, `${path}.confidence_interval.level`);
-  if (level !== 0.95) throw new Error(`DTO inválido: ${path}.confidence_interval.level deve ser 0.95.`);
-  const n = integer(ci.n, `${path}.confidence_interval.n`);
-  const df = finiteOrNull(ci.degrees_of_freedom, `${path}.confidence_interval.degrees_of_freedom`);
-  const lower = finiteOrNull(ci.lower, `${path}.confidence_interval.lower`);
-  const upper = finiteOrNull(ci.upper, `${path}.confidence_interval.upper`);
-  const nPlanned = integer(item.n_planned, `${path}.n_planned`);
-  const nComplete = integer(item.n_complete, `${path}.n_complete`);
-  const metricId = string(item.metric_id, `${path}.metric_id`);
-  const pairedDeltaSummary = parseDistribution(item.paired_delta_summary, `${path}.paired_delta_summary`);
-  const period = oneOf(item.period, periods, `${path}.period`);
-  const provenance = oneOf(item.provenance_kind, provenanceKinds, `${path}.provenance_kind`);
-  if (expectedPeriods[metricId] && period !== expectedPeriods[metricId]) throw new Error(`DTO inválido: ${path}.period diverge da semântica temporal documentada para ${metricId}.`);
-  if (provenance !== 'derived') throw new Error(`DTO inválido: ${path}.provenance_kind de resumo deve ser derived.`);
-  if (nComplete === 0 && Object.values(pairedDeltaSummary).some((value) => value !== null)) throw new Error(`DTO inválido: ${path}.paired_delta_summary deve estar indisponível quando n_complete é zero.`);
-  const intervalEligible = nComplete === nPlanned && n === nComplete;
-  if (nComplete > nPlanned || n > nComplete || (!intervalEligible && (lower !== null || upper !== null || df !== null)) || (n < 2 && (lower !== null || upper !== null || df !== null)) || (intervalEligible && n >= 2 && (df !== n - 1 || lower === null || upper === null))) throw new Error(`DTO inválido: ${path}.confidence_interval é inconsistente com completude, n ou graus de liberdade.`);
-  return { window_id: string(item.window_id, `${path}.window_id`), strategy_id: string(item.strategy_id, `${path}.strategy_id`), metric_id: metricId, unit: string(item.unit, `${path}.unit`), period, provenance_kind: provenance, method_version: string(item.method_version, `${path}.method_version`), n_planned: nPlanned, n_complete: nComplete, arm_summary: parseDistribution(item.arm_summary, `${path}.arm_summary`), paired_delta_summary: pairedDeltaSummary, confidence_interval: { method, level, lower, upper, n, degrees_of_freedom: df, interpretation: string(ci.interpretation, `${path}.confidence_interval.interpretation`), multiplicity: string(ci.multiplicity, `${path}.confidence_interval.multiplicity`) } };
-}
-
-export function parsePairedExperiment(value: unknown, expectedPlan?: ExpectedExperimentPlan): PairedExperiment {
-  const envelope = record(value, 'response');
-  const raw = record(envelope.experiment, 'response.experiment');
-  if (raw.dto_schema_version !== '1.0' || raw.protocol_id !== 'aurora-paired-multiseed-v1' || raw.protocol_version !== 1) throw new Error('Contrato incompatível: esperado dto_schema_version 1.0 e aurora-paired-multiseed-v1/protocol_version 1.');
-  if (!Array.isArray(raw.pairs) || !Array.isArray(raw.summaries_by_window) || !Array.isArray(raw.limitations)) throw new Error('DTO inválido: pairs, summaries_by_window e limitations devem ser listas.');
-  const counts = ['planned_pairs', 'completed_pairs', 'failed_pairs', 'running_pairs', 'missing_pairs'] as const;
-  const parsedCounts = Object.fromEntries(counts.map((key) => [key, integer(raw[key], `experiment.${key}`)])) as Record<(typeof counts)[number], number>;
-  if (parsedCounts.planned_pairs !== parsedCounts.completed_pairs + parsedCounts.failed_pairs + parsedCounts.running_pairs + parsedCounts.missing_pairs) throw new Error('DTO inválido: contadores de pares não reconciliam.');
-  const pairs = raw.pairs.map(parsePair);
-  const status = oneOf(raw.status, experimentStatuses, 'experiment.status');
-  if (!Array.isArray(raw.missing_pair_ids)) throw new Error('DTO inválido: missing_pair_ids deve ser uma lista.');
-  if (pairs.length !== parsedCounts.planned_pairs) throw new Error('DTO inválido: pairs deve enumerar cada combinação planejada conforme o DTO da API.');
-  const pairIds = new Set<string>();
-  const cells = new Set<string>();
-  for (const pair of pairs) {
-    const cell = `${pair.strategy_id}\0${pair.window_id}\0${pair.seed}`;
-    if (pairIds.has(pair.pair_id) || cells.has(cell)) throw new Error('DTO inválido: pairs contém identidade ou célula estratégia/janela/seed duplicada.');
-    pairIds.add(pair.pair_id);
-    cells.add(cell);
-  }
-  const includedCompleted = pairs.filter((pair) => pair.status === 'succeeded').length;
-  const includedFailed = pairs.filter((pair) => pair.status === 'failed' || pair.status === 'cancelled').length;
-  const includedRunning = pairs.filter((pair) => pair.status === 'running').length;
-  const includedMissing = pairs.filter((pair) => pair.status === 'queued').length;
-  const missingPairIds = raw.missing_pair_ids.map((id, index) => string(id, `experiment.missing_pair_ids[${index}]`));
-  const expectedMissingIds = pairs.filter((pair) => pair.status === 'queued').map((pair) => pair.pair_id).sort();
-  if (new Set(missingPairIds).size !== missingPairIds.length || [...missingPairIds].sort().some((id, index) => id !== expectedMissingIds[index]) || missingPairIds.length !== expectedMissingIds.length || missingPairIds.length !== parsedCounts.missing_pairs) throw new Error('DTO inválido: missing_pair_ids deve listar exatamente os pares queued e reconciliar missing_pairs.');
-  if (includedCompleted !== parsedCounts.completed_pairs || includedFailed !== parsedCounts.failed_pairs || includedRunning !== parsedCounts.running_pairs || includedMissing !== parsedCounts.missing_pairs) throw new Error('DTO inválido: contadores agregados não correspondem aos estados dos pares enumerados.');
-  const rowsAreComplete = true;
-  const windows = new Set(pairs.map((pair) => pair.window_id));
-  const strategies = new Set(pairs.map((pair) => pair.strategy_id));
-  const seeds = new Set(pairs.map((pair) => pair.seed));
-  const plannedCardinality = windows.size * strategies.size * seeds.size;
-  if (plannedCardinality > parsedCounts.planned_pairs || (rowsAreComplete && plannedCardinality !== parsedCounts.planned_pairs)) throw new Error('DTO inválido: cardinalidade de estratégia × janela × seed contradiz planned_pairs.');
-  if (expectedPlan) {
-    const expectedCells = new Set(expectedPlan.strategy_ids.flatMap((strategy) => expectedPlan.window_ids.flatMap((windowId) => expectedPlan.seeds.map((seed) => `${strategy}\0${windowId}\0${seed}`))));
-    if (expectedCells.size !== parsedCounts.planned_pairs || expectedCells.size !== cells.size || [...expectedCells].some((cell) => !cells.has(cell))) throw new Error('DTO inválido: pares retornados não correspondem às estratégias, janelas e seeds explicitamente solicitadas.');
-    if (pairs.some((pair) => !expectedPlan.window_ids.includes(pair.window_id) || !expectedPlan.strategy_ids.includes(pair.strategy_id))) throw new Error('DTO inválido: par retornado usa janela ou estratégia fora do plano solicitado.');
-  }
-  if (status === 'succeeded' && pairs.some((pair) => pairOutcome(pair) !== 'completed')) throw new Error('DTO inválido: experimento succeeded contém par retornado que não foi concluído.');
-  if (status === 'succeeded' && parsedCounts.missing_pairs + parsedCounts.failed_pairs + parsedCounts.running_pairs !== 0) throw new Error('DTO inválido: experimento succeeded possui pares pendentes ou inválidos.');
-  if (status === 'queued' && parsedCounts.completed_pairs + parsedCounts.failed_pairs + parsedCounts.running_pairs !== 0) throw new Error('DTO inválido: experimento queued já contém pares executados ou inválidos.');
-  if (status === 'partial' && (parsedCounts.running_pairs !== 0 || parsedCounts.completed_pairs === parsedCounts.planned_pairs)) throw new Error('DTO inválido: experimento partial deve estar sem pares ativos e com plano incompleto.');
-  if (status === 'failed' && parsedCounts.running_pairs !== 0) throw new Error('DTO inválido: experimento failed não pode manter pares em execução.');
-  if (status === 'cancelled' && parsedCounts.running_pairs !== 0) throw new Error('DTO inválido: experimento cancelled não pode manter pares em execução.');
-  const summaries = raw.summaries_by_window.map(parseWindowSummary);
-  const plannedByWindowStrategy = new Map<string, number>();
-  const completedByWindowStrategy = new Map<string, number>();
-  const metricCompleteByKey = new Map<string, number>();
-  for (const pair of pairs) {
-    const key = `${pair.window_id}\0${pair.strategy_id}`;
-    plannedByWindowStrategy.set(key, (plannedByWindowStrategy.get(key) ?? 0) + 1);
-    if (pairOutcome(pair) === 'completed') completedByWindowStrategy.set(key, (completedByWindowStrategy.get(key) ?? 0) + 1);
-    for (const [metricId, delta] of Object.entries(pair.deltas ?? {})) {
-      if (delta.value !== null) {
-        const metricKey = `${key}\0${metricId}`;
-        metricCompleteByKey.set(metricKey, (metricCompleteByKey.get(metricKey) ?? 0) + 1);
-      }
-    }
-  }
-  for (const summary of summaries) {
-    const key = `${summary.window_id}\0${summary.strategy_id}`;
-    const observedPlanned = plannedByWindowStrategy.get(key) ?? 0;
-    if (!windows.has(summary.window_id) || !strategies.has(summary.strategy_id)) throw new Error('DTO inválido: resumo referencia janela ou estratégia fora do plano solicitado e sem pares planejados.');
-    const expectedCount = expectedPlan && expectedPlan.window_ids.includes(summary.window_id) && expectedPlan.strategy_ids.includes(summary.strategy_id) ? expectedPlan.seeds.length : undefined;
-    if (expectedPlan && (expectedCount === undefined || ![...expectedPlan.primary_metric_ids, ...expectedPlan.secondary_metric_ids].includes(summary.metric_id))) throw new Error('DTO inválido: resumo inclui janela, estratégia ou métrica fora do plano solicitado.');
-    const completeCountUpperBound = rowsAreComplete ? (completedByWindowStrategy.get(key) ?? 0) : parsedCounts.completed_pairs;
-    const metricKey = `${key}\0${summary.metric_id}`;
-    const observedMetricComplete = metricCompleteByKey.get(metricKey) ?? 0;
-    if ((expectedCount !== undefined && summary.n_planned !== expectedCount) || (rowsAreComplete && summary.n_planned !== observedPlanned) || (!rowsAreComplete && summary.n_planned < observedPlanned) || summary.n_complete > completeCountUpperBound || (rowsAreComplete && summary.n_complete !== observedMetricComplete) || (!rowsAreComplete && summary.n_complete < observedMetricComplete)) throw new Error('DTO inválido: contagens do resumo não correspondem às combinações observáveis e deltas disponíveis de sua janela/estratégia/métrica.');
-  }
-  const keys = new Set<string>();
-  for (const summary of summaries) {
-    const key = `${summary.window_id}\0${summary.strategy_id}\0${summary.metric_id}`;
-    if (keys.has(key)) throw new Error('DTO inválido: summaries_by_window contém duplicata de janela/estratégia/métrica.');
-    keys.add(key);
-  }
-  return { experiment_id: string(raw.experiment_id, 'experiment.experiment_id'), dto_schema_version: '1.0', protocol_id: 'aurora-paired-multiseed-v1', protocol_version: 1, manifest_sha256: hash(raw.manifest_sha256, 'experiment.manifest_sha256'), arena_manifest_id: string(raw.arena_manifest_id, 'experiment.arena_manifest_id'), arena_manifest_sha256: hash(raw.arena_manifest_sha256, 'experiment.arena_manifest_sha256'), status, ...parsedCounts, missing_pair_ids: missingPairIds, limitations: raw.limitations.map((item, index) => string(item, `experiment.limitations[${index}]`)), pairs, summaries_by_window: summaries };
-}
-
-async function requestJson(url: string, init: RequestInit): Promise<unknown> {
-  const response = await fetch(url, { ...init, headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...init.headers } });
-  if (!response.ok) throw new Error(`A API respondeu com erro HTTP ${response.status}.`);
-  try { return await response.json() as unknown; } catch { throw new Error('A API retornou uma resposta que não é JSON válido.'); }
-}
-
-export async function createPairedExperiment(input: CreateExperimentInput): Promise<PairedExperiment> {
-  return parsePairedExperiment(await requestJson(PAIRED_EXPERIMENTS_URL, { method: 'POST', body: JSON.stringify(input) }), input);
-}
-export async function fetchPairedExperiment(id: string, signal?: AbortSignal, expectedPlan?: ExpectedExperimentPlan): Promise<PairedExperiment> {
-  const result = parsePairedExperiment(await requestJson(`${PAIRED_EXPERIMENTS_URL}/${encodeURIComponent(id)}`, { method: 'GET', signal }), expectedPlan);
-  if (result.experiment_id !== id) throw new Error('A API retornou outro experimento durante o acompanhamento.');
-  return result;
-}
+export async function retryPairedExperiment(id:string,expectedPlan?:ExpectedExperimentPlan):Promise<PairedExperiment>{const parsed=parsePairedExperiment(await requestJson(`${PAIRED_EXPERIMENTS_URL}/${encodeURIComponent(id)}/retry`,{method:'POST',body:JSON.stringify({pair_ids:null})}),expectedPlan);if(parsed.experiment_id!==id)throw Error('A API retornou outro experimento durante a retomada.');return parsed;}

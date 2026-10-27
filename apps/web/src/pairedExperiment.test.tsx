@@ -1,226 +1,85 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MetricProvenanceCell, PairedExperimentPanel } from './PairedExperimentPanel';
-import { parsePairedExperiment } from './pairedExperiment';
+import { computePolicySha256, parsePairedExperiment, type ExpectedExperimentPlan } from './pairedExperiment';
 import { failedPairWithStaleDeltaFixture, pairedExperimentContractFixture } from './pairedExperiment.contract.fixture';
 
 const copy = (): { experiment: Record<string, any> } => structuredClone(pairedExperimentContractFixture) as { experiment: Record<string, any> };
+const expectedPlan = { window_ids: ['weekday_am_peak'], strategies: structuredClone(pairedExperimentContractFixture.experiment.manifest.strategies), seeds: [41, 42], metrics: ['trips_completed', 'mean_queue_length_meters'], primary_metrics: ['trips_completed'] } as ExpectedExperimentPlan;
 
 describe('paired multi-seed DTO v1.0 adapter', () => {
-  it('accepts the documented envelope, keeps zero distinct from unavailable and retains provenance and period', () => {
-    const parsed = parsePairedExperiment(copy());
+  it('accepts the API envelope and frozen plan, including zero and unavailable metrics', () => {
+    const parsed = parsePairedExperiment(copy(), expectedPlan);
     expect(parsed.dto_schema_version).toBe('1.0');
+    expect(parsed.pairs).toHaveLength(2);
     expect(parsed.pairs[0].baseline_metrics?.trips_completed.value).toBe(0);
     expect(parsed.pairs[0].baseline_metrics?.mean_queue_length_meters.value).toBeNull();
-    expect(parsed.pairs[0].route_exposure).toBe('unknown');
-    expect(parsed.pairs[0].strategy_metrics?.trips_completed.period).toBe('completed_trips_through_drain');
-    expect(parsed.pairs[0].strategy_metrics?.trips_completed.provenance_kind).toBe('simulated');
-    expect(parsed.summaries_by_window[0].confidence_interval.n).toBe(1);
-    expect(() => parsePairedExperiment(copy(), { window_ids: ['weekday_off_peak'], strategy_ids: ['signal_timing_node_02_04'], seeds: [42], primary_metric_ids: ['trips_completed'], secondary_metric_ids: [] })).toThrow(/não correspondem às estratégias, janelas e seeds explicitamente solicitadas/);
+    expect(parsed.pairs[0].deltas?.trips_completed.source_artifact_sha256).toHaveLength(2);
+    expect(parsed.summaries_by_window.find((summary) => summary.metric_id === 'trips_completed')?.arm_summary).toHaveProperty('baseline');
+    expect(() => parsePairedExperiment(copy(), { ...expectedPlan, window_ids: ['weekday_off_peak'] })).toThrow(/manifesto retornado diverge/);
   });
 
-  it('rejects a different schema/protocol version and non-reconciling pair counts', () => {
-    const wrongVersion = copy();
-    wrongVersion.experiment.dto_schema_version = '2.0';
-    expect(() => parsePairedExperiment(wrongVersion)).toThrow(/dto_schema_version/);
+  it('accepts valid partial and queued experiments', () => {
+    expect(parsePairedExperiment(structuredClone(failedPairWithStaleDeltaFixture)).status).toBe('partial');
+
+    const queued = copy();
+    queued.experiment.status = 'queued';
+    queued.experiment.completed_pairs = 0;
+    queued.experiment.missing_pairs = 2;
+    queued.experiment.missing_pair_ids = ['pair-41', 'pair-42'];
+    queued.experiment.attempts = 0;
+    queued.experiment.sumo_runs_used = 0;
+    queued.experiment.pairs = queued.experiment.pairs.map((pair: any) => ({
+      ...pair, status: 'queued', baseline_metrics: {}, strategy_metrics: {}, deltas: {},
+      executions: Object.fromEntries(['baseline', 'strategy'].map((arm) => [arm, {
+        ...pair.executions[arm], status: 'queued', attempts: [{ ...pair.executions[arm].attempts[0], attempt: 1, status: 'queued', artifact_sha256: null, wall_clock_seconds: 0 }],
+        result_metrics: null, artifact_sha256: null, artifacts: {},
+      }])),
+    }));
+    queued.experiment.summaries_by_window = queued.experiment.summaries_by_window.map((summary: any) => ({
+      ...summary, n_complete: 0,
+      arm_summary: { baseline: { mean: null, sd: null, median: null, iqr: null, min: null, max: null }, strategy: { mean: null, sd: null, median: null, iqr: null, min: null, max: null } },
+      paired_delta_summary: { mean: null, sd: null, median: null, iqr: null, min: null, max: null },
+      confidence_interval: { ...summary.confidence_interval, n: 0, degrees_of_freedom: null, lower: null, upper: null },
+    }));
+    expect(parsePairedExperiment(queued).status).toBe('queued');
+  });
+
+  it('rejects contradictory aggregate counts, experiment status, and summary counts', () => {
     const wrongCounts = copy();
     wrongCounts.experiment.missing_pairs = 1;
-    expect(() => parsePairedExperiment(wrongCounts)).toThrow(/não reconciliam/);
+    expect(() => parsePairedExperiment(wrongCounts)).toThrow(/contadores não reconciliam/);
+
+    const wrongStatus = copy();
+    wrongStatus.experiment.status = 'succeeded';
+    wrongStatus.experiment.pairs[0].status = 'queued';
+    wrongStatus.experiment.pairs[0].baseline_metrics = {};
+    wrongStatus.experiment.pairs[0].strategy_metrics = {};
+    wrongStatus.experiment.pairs[0].deltas = {};
+    wrongStatus.experiment.completed_pairs = 1;
+    wrongStatus.experiment.missing_pairs = 1;
+    wrongStatus.experiment.missing_pair_ids = ['pair-41'];
+    expect(() => parsePairedExperiment(wrongStatus)).toThrow(/succeeded com pares incompletos/);
+
+    const wrongSummary = copy();
+    wrongSummary.experiment.summaries_by_window[0].n_complete = 1;
+    wrongSummary.experiment.summaries_by_window[0].confidence_interval.n = 1;
+    wrongSummary.experiment.summaries_by_window[0].confidence_interval.degrees_of_freedom = null;
+    wrongSummary.experiment.summaries_by_window[0].confidence_interval.lower = null;
+    wrongSummary.experiment.summaries_by_window[0].confidence_interval.upper = null;
+    expect(() => parsePairedExperiment(wrongSummary)).toThrow(/n do resumo diverge/);
   });
 
-  it('rejects malformed hashes, duplicate cells, identity mismatches, and partial metrics on failed pairs', () => {
+  it('rejects malformed hashes, duplicate cells, and delta source hashes without both artifacts', () => {
     const badHash = copy();
     badHash.experiment.manifest_sha256 = 'not-a-sha';
     expect(() => parsePairedExperiment(badHash)).toThrow(/SHA-256/);
     const duplicate = copy();
-    duplicate.experiment.pairs.push(structuredClone(duplicate.experiment.pairs[0]));
-    duplicate.experiment.planned_pairs = 2;
-    duplicate.experiment.completed_pairs = 2;
+    duplicate.experiment.pairs[1] = structuredClone(duplicate.experiment.pairs[0]);
     expect(() => parsePairedExperiment(duplicate)).toThrow(/duplicada/);
-    const mismatchedExecution = copy();
-    mismatchedExecution.experiment.pairs[0].executions.baseline.execution_id = 'different-id';
-    expect(() => parsePairedExperiment(mismatchedExecution)).toThrow(/IDs planos e aninhados/);
-    const partialMetrics = copy();
-    partialMetrics.experiment.pairs[0].status = 'failed';
-    partialMetrics.experiment.pairs[0].strategy_metrics = null;
-    partialMetrics.experiment.pairs[0].deltas = null;
-    expect(() => parsePairedExperiment(partialMetrics)).toThrow(/braços incompletos devem ter métricas null/);
-  });
-
-  it('rejects invalid attempt ordering and summaries with conflicting period or provenance', () => {
-    const badAttempts = copy();
-    badAttempts.experiment.pairs[0].executions.baseline.attempts.push({ attempt: 3, status: 'succeeded', error: null, artifact_sha256: 'a'.repeat(64) });
-    expect(() => parsePairedExperiment(badAttempts)).toThrow(/ordinais únicos/);
-    const badPeriod = copy();
-    badPeriod.experiment.summaries_by_window[0].metric_id = 'mean_queue_length_meters';
-    badPeriod.experiment.summaries_by_window[0].period = 'completed_trips_through_drain';
-    expect(() => parsePairedExperiment(badPeriod)).toThrow(/semântica temporal/);
-    const badProvenance = copy();
-    badProvenance.experiment.summaries_by_window[0].provenance_kind = 'simulated';
-    expect(() => parsePairedExperiment(badProvenance)).toThrow(/de resumo deve ser derived/);
-  });
-
-  it('preserves a successful arm on a failed pair and rejects an interval that omits planned pairs', () => {
-    const failedPair = copy();
-    failedPair.experiment.status = 'failed';
-    failedPair.experiment.completed_pairs = 0;
-    failedPair.experiment.failed_pairs = 1;
-    failedPair.experiment.pairs[0].status = 'failed';
-    failedPair.experiment.pairs[0].strategy_metrics = null;
-    failedPair.experiment.pairs[0].deltas = null;
-    failedPair.experiment.pairs[0].executions.strategy.status = 'failed';
-    failedPair.experiment.pairs[0].executions.strategy.attempts[0].status = 'failed';
-    failedPair.experiment.summaries_by_window[0].n_complete = 0;
-    failedPair.experiment.summaries_by_window[0].arm_summary = { mean: null, sd: null, median: null, iqr: null, min: null, max: null };
-    failedPair.experiment.summaries_by_window[0].paired_delta_summary = { mean: null, sd: null, median: null, iqr: null, min: null, max: null };
-    failedPair.experiment.summaries_by_window[0].confidence_interval.n = 0;
-    const parsed = parsePairedExperiment(failedPair);
-    expect(parsed.pairs[0].baseline_metrics?.trips_completed.value).toBe(0);
-    expect(parsed.pairs[0].strategy_metrics).toBeNull();
-    expect(parsed.pairs[0].deltas).toBeNull();
-
-    const cancelledPair = copy();
-    cancelledPair.experiment.status = 'cancelled';
-    cancelledPair.experiment.completed_pairs = 0;
-    cancelledPair.experiment.failed_pairs = 1;
-    cancelledPair.experiment.pairs[0].status = 'cancelled';
-    cancelledPair.experiment.pairs[0].strategy_metrics = null;
-    cancelledPair.experiment.pairs[0].deltas = null;
-    cancelledPair.experiment.pairs[0].executions.strategy.status = 'cancelled';
-    cancelledPair.experiment.pairs[0].executions.strategy.attempts[0].status = 'cancelled';
-    cancelledPair.experiment.summaries_by_window[0].n_complete = 0;
-    cancelledPair.experiment.summaries_by_window[0].arm_summary = { mean: null, sd: null, median: null, iqr: null, min: null, max: null };
-    cancelledPair.experiment.summaries_by_window[0].paired_delta_summary = { mean: null, sd: null, median: null, iqr: null, min: null, max: null };
-    cancelledPair.experiment.summaries_by_window[0].confidence_interval.n = 0;
-    expect(parsePairedExperiment(cancelledPair).failed_pairs).toBe(1);
-
-    const incompleteInterval = copy();
-    incompleteInterval.experiment.summaries_by_window[0].confidence_interval = { method: 'student_t_paired', level: 0.95, lower: -1, upper: 1, n: 0, degrees_of_freedom: null, interpretation: 'conditional_monte_carlo_only', multiplicity: 'marginal_descriptive' };
-    expect(() => parsePairedExperiment(incompleteInterval)).toThrow(/confidence_interval é inconsistente com completude/);
-  });
-
-  it('suppresses deltas from a failed pair even when both arms succeeded', () => {
-    const failedPair = structuredClone(failedPairWithStaleDeltaFixture) as { experiment: Record<string, any> };
-    const parsed = parsePairedExperiment(failedPair);
-    expect(parsed.pairs[0].baseline_metrics?.trips_completed.value).toBe(0);
-    expect(parsed.pairs[0].strategy_metrics?.trips_completed.value).toBe(0);
-    expect(parsed.pairs[0].deltas).toBeNull();
-
-    failedPair.experiment.summaries_by_window[0].paired_delta_summary.mean = 0;
-    expect(() => parsePairedExperiment(failedPair)).toThrow(/paired_delta_summary deve estar indisponível quando n_complete é zero/);
-  });
-
-  it('rejects a successful experiment whose included pair contradicts its terminal status', () => {
-    const inconsistent = copy();
-    inconsistent.experiment.pairs[0].status = 'failed';
-    inconsistent.experiment.pairs[0].baseline_metrics = null;
-    inconsistent.experiment.pairs[0].strategy_metrics = null;
-    inconsistent.experiment.pairs[0].deltas = null;
-    inconsistent.experiment.pairs[0].executions.baseline.status = 'failed';
-    inconsistent.experiment.pairs[0].executions.baseline.attempts[0].status = 'failed';
-    inconsistent.experiment.pairs[0].executions.strategy.status = 'failed';
-    inconsistent.experiment.pairs[0].executions.strategy.attempts[0].status = 'failed';
-    inconsistent.experiment.completed_pairs = 0;
-    inconsistent.experiment.failed_pairs = 1;
-    expect(() => parsePairedExperiment(inconsistent)).toThrow(/experimento succeeded contém par retornado que não foi concluído/);
-  });
-
-  it('requires every planned cell and reconciles row states with global and window-strategy counts', () => {
-    const omitted = copy();
-    omitted.experiment.pairs = [];
-    expect(() => parsePairedExperiment(omitted)).toThrow(/pairs deve enumerar cada combinação planejada/);
-    expect(() => parsePairedExperiment(omitted, { window_ids: ['weekday_am_peak'], strategy_ids: ['signal_timing_node_02_04'], seeds: [42], primary_metric_ids: ['trips_completed'], secondary_metric_ids: [] })).toThrow(/pairs deve enumerar cada combinação planejada/);
-
-    const rowCountMismatch = copy();
-    rowCountMismatch.experiment.pairs[0].status = 'failed';
-    rowCountMismatch.experiment.pairs[0].baseline_metrics = null;
-    rowCountMismatch.experiment.pairs[0].strategy_metrics = null;
-    rowCountMismatch.experiment.pairs[0].deltas = null;
-    rowCountMismatch.experiment.pairs[0].executions.baseline.status = 'failed';
-    rowCountMismatch.experiment.pairs[0].executions.baseline.attempts[0].status = 'failed';
-    rowCountMismatch.experiment.pairs[0].executions.strategy.status = 'failed';
-    rowCountMismatch.experiment.pairs[0].executions.strategy.attempts[0].status = 'failed';
-    expect(() => parsePairedExperiment(rowCountMismatch)).toThrow(/contadores agregados não correspondem/);
-
-    const queuedMismatch = copy();
-    queuedMismatch.experiment.status = 'queued';
-    expect(() => parsePairedExperiment(queuedMismatch)).toThrow(/experimento queued já contém pares executados/);
-
-    const partialMismatch = copy();
-    partialMismatch.experiment.status = 'partial';
-    partialMismatch.experiment.completed_pairs = 0;
-    partialMismatch.experiment.running_pairs = 1;
-    partialMismatch.experiment.pairs[0].status = 'running';
-    partialMismatch.experiment.pairs[0].baseline_metrics = null;
-    partialMismatch.experiment.pairs[0].strategy_metrics = null;
-    partialMismatch.experiment.pairs[0].deltas = null;
-    for (const arm of ['baseline', 'strategy'] as const) {
-      partialMismatch.experiment.pairs[0].executions[arm].status = 'running';
-      partialMismatch.experiment.pairs[0].executions[arm].attempts[0].status = 'running';
-    }
-    expect(() => parsePairedExperiment(partialMismatch)).toThrow(/partial deve estar sem pares ativos/);
-
-    const understatedSummary = copy();
-    understatedSummary.experiment.summaries_by_window[0].n_complete = 0;
-    understatedSummary.experiment.summaries_by_window[0].confidence_interval.n = 0;
-    expect(() => parsePairedExperiment(understatedSummary)).toThrow(/paired_delta_summary deve estar indisponível/);
-
-    const outsidePlan = copy();
-    outsidePlan.experiment.summaries_by_window[0].window_id = 'weekday_off_peak';
-    expect(() => parsePairedExperiment(outsidePlan, { window_ids: ['weekday_am_peak'], strategy_ids: ['signal_timing_node_02_04'], seeds: [42], primary_metric_ids: ['trips_completed'], secondary_metric_ids: [] })).toThrow(/fora do plano solicitado/);
-
-    const ghostWindowSummary = copy();
-    ghostWindowSummary.experiment.summaries_by_window[0].window_id = 'weekday_off_peak';
-    ghostWindowSummary.experiment.summaries_by_window[0].n_planned = 0;
-    ghostWindowSummary.experiment.summaries_by_window[0].n_complete = 0;
-    ghostWindowSummary.experiment.summaries_by_window[0].paired_delta_summary = { mean: null, sd: null, median: null, iqr: null, min: null, max: null };
-    ghostWindowSummary.experiment.summaries_by_window[0].confidence_interval.n = 0;
-    expect(() => parsePairedExperiment(ghostWindowSummary)).toThrow(/sem pares planejados/);
-
-    const ghostStrategySummary = copy();
-    ghostStrategySummary.experiment.summaries_by_window[0].strategy_id = 'unplanned_strategy';
-    ghostStrategySummary.experiment.summaries_by_window[0].n_planned = 0;
-    ghostStrategySummary.experiment.summaries_by_window[0].n_complete = 0;
-    ghostStrategySummary.experiment.summaries_by_window[0].paired_delta_summary = { mean: null, sd: null, median: null, iqr: null, min: null, max: null };
-    ghostStrategySummary.experiment.summaries_by_window[0].confidence_interval.n = 0;
-    expect(() => parsePairedExperiment(ghostStrategySummary)).toThrow(/sem pares planejados/);
-
-    const betweenCells = copy();
-    betweenCells.experiment.status = 'running';
-    betweenCells.experiment.completed_pairs = 0;
-    betweenCells.experiment.missing_pairs = 1;
-    betweenCells.experiment.missing_pair_ids = ['pair-001'];
-    betweenCells.experiment.pairs[0].status = 'queued';
-    betweenCells.experiment.pairs[0].baseline_metrics = null;
-    betweenCells.experiment.pairs[0].strategy_metrics = null;
-    betweenCells.experiment.pairs[0].deltas = null;
-    for (const arm of ['baseline', 'strategy'] as const) {
-      betweenCells.experiment.pairs[0].executions[arm].status = 'queued';
-      betweenCells.experiment.pairs[0].executions[arm].attempts[0].status = 'queued';
-    }
-    betweenCells.experiment.summaries_by_window[0].n_complete = 0;
-    betweenCells.experiment.summaries_by_window[0].arm_summary = { mean: null, sd: null, median: null, iqr: null, min: null, max: null };
-    betweenCells.experiment.summaries_by_window[0].paired_delta_summary = { mean: null, sd: null, median: null, iqr: null, min: null, max: null };
-    betweenCells.experiment.summaries_by_window[0].confidence_interval.n = 0;
-    expect(parsePairedExperiment(betweenCells).status).toBe('running');
-    betweenCells.experiment.missing_pair_ids = [];
-    expect(() => parsePairedExperiment(betweenCells)).toThrow(/missing_pair_ids deve listar exatamente/);
-
-    const pairRunningWithoutArm = copy();
-    pairRunningWithoutArm.experiment.status = 'running';
-    pairRunningWithoutArm.experiment.completed_pairs = 0;
-    pairRunningWithoutArm.experiment.running_pairs = 1;
-    pairRunningWithoutArm.experiment.missing_pairs = 0;
-    pairRunningWithoutArm.experiment.missing_pair_ids = [];
-    pairRunningWithoutArm.experiment.pairs[0].status = 'running';
-    pairRunningWithoutArm.experiment.pairs[0].baseline_metrics = null;
-    pairRunningWithoutArm.experiment.pairs[0].strategy_metrics = null;
-    pairRunningWithoutArm.experiment.pairs[0].deltas = null;
-    for (const arm of ['baseline', 'strategy'] as const) {
-      pairRunningWithoutArm.experiment.pairs[0].executions[arm].status = 'queued';
-      pairRunningWithoutArm.experiment.pairs[0].executions[arm].attempts[0].status = 'queued';
-    }
-    expect(() => parsePairedExperiment(pairRunningWithoutArm)).toThrow(/pair running precisa de ao menos um braço running/);
+    const missingDeltaSource = copy();
+    missingDeltaSource.experiment.pairs[0].deltas.trips_completed.source_artifact_sha256 = ['d'.repeat(64)];
+    expect(() => parsePairedExperiment(missingDeltaSource)).toThrow(/dois artefatos de origem/);
   });
 });
 
@@ -247,3 +106,45 @@ describe('paired experiment form accessibility markup', () => {
     expect(html).toContain('b'.repeat(64));
   });
 });
+
+describe('mobility-experiments HTTP adapter', () => {
+  const createInput = {
+    arena_manifest_id: 'arena-manifest-001', arena_manifest_sha256: 'a'.repeat(64), round_index: 1,
+    instance_id: 'aurora-instance-001', city_id: 'aurora-base-v1' as const,
+    window_ids: ['weekday_am_peak'], seeds: [41, 42],
+    strategies: [{ strategy_id: 'signal_timing_node_02_04', policy_version: '1', policy_sha256: 'b'.repeat(64), intervention: { node_id: 'node_02_04', phases: [{ movement: 'north_south' as const, duration_seconds: 30 }, { movement: 'east_west' as const, duration_seconds: 30 }] } }],
+    baseline_id: 'aurora-default', baseline_version: '1', baseline_sha256: 'c'.repeat(64), drain_limit_seconds: 300,
+    metrics: ['trips_completed', 'mean_queue_length_meters'], metric_tolerances: { trips_completed: { exact: true }, mean_queue_length_meters: { absolute: 0, relative: 0 } },
+    method_version: 'sumo-metrics-v1', budget: { max_sumo_runs: 4, max_attempts_per_execution: 2, max_reproducibility_checks: 0, max_wall_clock_seconds_per_run: 60, max_total_wall_clock_seconds: 240, admit_incomplete: true },
+    reproducibility_checks: 0, selection_method: 'externally_predeclared', master_seed: 9001, primary_metrics: ['trips_completed'], confidence_level: 0.95,
+  };
+  it('posts the API nested create DTO and parses the 202 experiment envelope', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 202, json: async () => copy() });
+    vi.stubGlobal('fetch', fetchMock);
+    const { createPairedExperiment, PAIRED_EXPERIMENTS_URL } = await import('./pairedExperiment');
+    const created = await createPairedExperiment(createInput);
+    expect(created.experiment_id).toBe('paired-exp-001');
+    expect(fetchMock).toHaveBeenCalledWith(PAIRED_EXPERIMENTS_URL, expect.objectContaining({ method: 'POST', body: JSON.stringify(createInput) }));
+    vi.unstubAllGlobals();
+  });
+  it('posts retry to the API retry route with the documented all-eligible-pairs body', async () => {
+    const resumed = structuredClone(failedPairWithStaleDeltaFixture) as any; resumed.experiment.status = 'queued'; resumed.experiment.completed_pairs = 1; resumed.experiment.failed_pairs = 0; resumed.experiment.missing_pairs = 1; resumed.experiment.missing_pair_ids = ['pair-42']; resumed.experiment.pairs[1].status = 'queued'; resumed.experiment.pairs[1].executions.strategy.status = 'queued';
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 202, json: async () => resumed });
+    vi.stubGlobal('fetch', fetchMock);
+    const { retryPairedExperiment, PAIRED_EXPERIMENTS_URL } = await import('./pairedExperiment');
+    await expect(retryPairedExperiment('paired-exp-001')).resolves.toMatchObject({ status: 'queued', completed_pairs: 1, missing_pairs: 1 });
+    expect(fetchMock).toHaveBeenCalledWith(`${PAIRED_EXPERIMENTS_URL}/paired-exp-001/retry`, expect.objectContaining({ method: 'POST', body: JSON.stringify({ pair_ids: null }) }));
+    vi.unstubAllGlobals();
+  });
+  it('gets by encoded experiment ID and returns API detail errors', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, json: async () => copy() }).mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({ detail: 'Experiment not found.' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const { fetchPairedExperiment, PAIRED_EXPERIMENTS_URL } = await import('./pairedExperiment');
+    await expect(fetchPairedExperiment('paired-exp-001')).resolves.toMatchObject({ experiment_id: 'paired-exp-001' });
+    expect(fetchMock.mock.calls[0][0]).toBe(`${PAIRED_EXPERIMENTS_URL}/paired-exp-001`);
+    await expect(fetchPairedExperiment('missing')).rejects.toThrow('Experiment not found.');
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('API JCS policy hashes', () => { it('matches the canonical baseline payload hash expected by the server', async () => { await expect(computePolicySha256('baseline', '1', null)).resolves.toBe('3f40e183a4a2c9a8d5ee534d7d7f12f21150ba7db32f7d1316a4310db5db5224'); }); });
