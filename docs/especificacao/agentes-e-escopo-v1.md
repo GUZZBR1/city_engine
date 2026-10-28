@@ -21,7 +21,7 @@ O benchmark inicial fica restrito a:
 2. Um baseline sem intervenção e cinco políticas determinísticas de temporização, todas identificadas por `policy_id` e versão congelada. A regra e os tempos de cada política devem estar publicados antes da execução.
 3. Uma única ação de temporização em um cruzamento elegível por comparação e uma janela configurada. Cada par baseline/intervenção recebe o mesmo snapshot, demanda, janela, seed e limites do simulador.
 4. Métricas da execução daquela janela, lado a lado com proveniência e limitações. A apresentação é vetorial; não existe score universal, vencedor universal ou ordenação que comprima métricas distintas.
-5. Nenhuma política treinada, aprendizado durante ou entre partidas, orçamento urbano, obra, mudança de capacidade urbana ou inferência anual de efeitos de mobilidade.
+5. Nenhuma política treinada, aprendizado durante ou entre partidas, orçamento ou créditos como recurso estratégico do MVP, obra, mudança de capacidade urbana ou inferência anual de efeitos de mobilidade.
 
 “Cinco políticas” não significa cinco políticas treinadas. São regras determinísticas reproduzíveis. A baseline é referência separada, não uma sexta estratégia aprendida.
 
@@ -32,13 +32,15 @@ O código disponível não corresponde integralmente a esse contrato único; o r
 | Superfície implementada | O que o código faz hoje | Limite para este MVP |
 |---|---|---|
 | Comparador de mobilidade | `ArenaSignalSumoEvaluator` roda baseline e intervenção com a mesma entrada, seed e janela. A UI de comparação seleciona `node:02:04`; a janela padrão é `weekday_am_peak`. | É evidência de comparação sintética de uma intervenção em uma janela, não de cinco políticas numa partida comum nem de efeito anual. |
-| Arena da API com SUMO disponível | `create_arena` monta cinco instâncias: baseline e quatro `FixedSignalTimingPolicy`; algumas alteram um nó e uma altera dois. Executa rodadas do estado urbano sintético. | Não satisfaz a contagem/configuração do MVP acima: são quatro heurísticas, não cinco, e a política coordenada pode alterar dois nós. Não usar sua saída como resultado do benchmark de um cruzamento. |
+| Arena da API com SUMO disponível | `create_arena` monta cinco instâncias: baseline e quatro `FixedSignalTimingPolicy`; algumas alteram um nó e uma altera dois. `FixedSignalTimingPolicy` aceita múltiplas alterações e o árbitro permite até duas alterações semafóricas por proposta. Executa rodadas do estado urbano sintético e também chama o avaliador SUMO de janela no fluxo anual; a interface exibe essa evidência em seção própria. | Não satisfaz a contagem/configuração do MVP acima: são quatro heurísticas, não cinco, e a política coordenada pode alterar dois nós. O runtime não impõe o limite MVP de uma ação. A evidência SUMO continua sendo de janela, mesmo quando aparece no painel da Arena anual; não a misturar com indicadores anuais. |
 | Arena da API sem SUMO | O fallback cria cinco referências sem ação. | Não representa baseline mais cinco políticas de temporização. |
 | Estado anual e créditos sintéticos | `ArenaRunner`, `AnnualRoundEngine`, `BudgetEnvelope` e contratos relacionados contêm rodadas anuais sintéticas, transições agregadas e créditos do jogo. A tarifa de sinal pode ser habilitada quando SUMO está disponível; ações de habitação e serviço permanecem indisponíveis no catálogo padrão. | Isso é implementação parcial de mecânicas sintéticas do produto, não orçamento público, obra executada, impacto urbano observado ou efeito anual de uma janela SUMO. Esses elementos ficam fora das alegações do MVP. |
 
 As diferenças acima são lacunas de alinhamento do produto, não permissão para descrever comportamento inexistente como implementado. Até uma integração posterior, materiais do MVP devem identificar qual superfície produziu cada resultado e preservar as limitações da tabela.
 
 `agentes-arena-v1.md` registra cinco estratégias como proposta de contrato, incluindo itens explicitamente pendentes; essa proposta não comprova cinco políticas executáveis. `rodadas-acoes-v1.md` e `contrato-evolucao-urbana-v1.md` definem relógio, orçamento e transições anuais como contratos da Arena urbana. Devem ser lidos em seu próprio escopo e não ampliam o benchmark de mobilidade por janela definido aqui.
+
+O MVP não oferece saldo nem disputa por orçamento. Se uma versão futura incluir ação tarifada, o árbitro calculará e validará custos no servidor, segundo regra publicada; custo sintético em créditos usado pela Arena anual atual não integra nem pontua o benchmark inicial.
 
 ## 3. Protocolo normativo de decisão
 
@@ -51,8 +53,8 @@ observation → proposal → arbitration → execution → result
 ```
 
 1. **Observation:** o runtime fornece somente o snapshot, a janela, a seed e os campos autorizados, com identificadores e proveniência. A observação é somente leitura e contém hash do estado observado.
-2. **Proposal:** cada política devolve zero ou uma proposta tipada para a própria cópia, vinculada pelo runtime ao ID/versão congelados da política e contendo identidade da execução, hash observado e ação permitida. A proposta é uma solicitação, não uma mutação. Campos de custo enviados pela política nunca definem tarifa nem autorização.
-3. **Arbitration:** o árbitro valida a proposta inteira contra o catálogo e o contexto congelado. Custos e compromissos aplicáveis são calculados pelo servidor a partir de regras versionadas. Proposta inválida, conflitante ou acima de limite é rejeitada atomicamente.
+2. **Proposal:** cada política devolve zero ou uma ação em proposta tipada para a própria cópia, vinculada pelo runtime ao ID/versão congelados da política e contendo identidade da execução, hash observado e ação permitida. A proposta é uma solicitação, não uma mutação. Campos de custo enviados pela política nunca definem tarifa nem autorização.
+3. **Arbitration:** o árbitro valida a proposta inteira contra o catálogo e o contexto congelado. No MVP sem orçamento, não calcula saldo ou custo estratégico; em versões tarifadas, custos e compromissos aplicáveis são calculados pelo servidor a partir de regras versionadas. Proposta inválida, conflitante ou acima de limite é rejeitada atomicamente.
 4. **Execution:** apenas uma decisão aceita é passada ao executor autorizado. Nenhum efeito é aplicado antes da arbitragem. Erro de validação, execução ou invariante não pode deixar efeito parcial; a comparação afetada falha e é marcada como tal.
 5. **Result:** runtime registra proposta original, decisão, recibos, evidência do executor, métricas, hashes, versões e motivo de falha. O resultado não transforma métricas simuladas em observações.
 
@@ -87,9 +89,9 @@ O MVP só está apto para comparação quando todos os itens forem verdadeiros:
 - [ ] Há exatamente um baseline e cinco políticas determinísticas nomeadas, versionadas e documentadas; cada política propõe no máximo uma alteração no cruzamento elegível.
 - [ ] Baseline e políticas usam o mesmo snapshot, demanda, seed, janela e limites; cada uma opera em cópia isolada.
 - [ ] Todas as observações são congeladas antes das propostas; decisão de uma política não altera a entrada de outra.
-- [ ] Árbitro valida esquema, estado, alvo e parâmetros; calcula qualquer custo no servidor; rejeição ou erro não deixa efeito parcial.
+- [ ] Árbitro valida esquema, estado, alvo e parâmetros; no MVP não há saldo orçamentário, e qualquer custo habilitado em fase futura é calculado pelo servidor; rejeição ou erro não deixa efeito parcial.
 - [ ] Propostas, decisões, executor, hashes, versões, parâmetros, seed e artefatos bastam para repetir e auditar uma execução.
-- [ ] Resultados exibem métricas da janela, unidades e limitações, sem score universal, alegação anual, obra, orçamento urbano ou linguagem de observação empírica.
+- [ ] Resultados exibem métricas da janela, unidades e limitações, sem score universal, ranking/vencedor universal, alegação anual, obra, orçamento urbano ou linguagem de observação empírica.
 - [ ] Falhas, métricas ausentes, exposição de rota desconhecida e execução incompleta são reportadas sem conversão em sucesso ou zero.
 
 ## 7. Riscos e controles
