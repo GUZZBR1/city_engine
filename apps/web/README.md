@@ -1,6 +1,6 @@
-# Frontend MVP 0 — Urban Twin Arena
+# Frontend MVP 0 — Urban Twin Arena: Arena de Tráfego
 
-Interface React + TypeScript que consulta os metadados e a geometria de Aurora na API e exibe um esquema 2D sem mapa-base. População, empregos, identidade e geometrias vêm exclusivamente dos endpoints; o navegador não gera cidade nem calcula métricas científicas.
+Interface React + TypeScript para a Arena de Tráfego: consulta os metadados e a geometria da rede viária sintética Aurora, exibe seu esquema 2D e executa uma competição pareada entre cinco políticas de operação semafórica. Esta primeira rodada altera o controlador de um cruzamento; obras, pavimentação e rodovias ainda não estão modeladas.
 
 ## Executar localmente
 
@@ -23,20 +23,21 @@ Endpoints consumidos:
 - `GET /api/v1/simulations/{simulation_id}`
 - `POST /api/v1/comparisons`
 - `GET /api/v1/comparisons/{comparison_id}`
+- `POST /api/v1/traffic-competitions`
+- `GET /api/v1/traffic-competitions/{competition_id}`
 
 Os resultados e métricas vêm da API. A interface solicita um escoamento de até
 3.600 s após a janela de demanda: nenhuma partida nova ocorre nesse período, e
 veículos que não terminarem até o limite aparecem como não concluídos. O
 comprimento médio de fila cobre somente a janela de demanda; médias nulas
-aparecem como indisponíveis. A API local mantém jobs em memória e não oferece
-cancelamento nesta etapa. O painel também permite executar uma comparação
-pareada entre a base e a temporização declarada para `node:02:00`. Ele exibe
-base, intervenção e deltas com unidades, além do snapshot, janela, semente,
-escoamento, identidade das execuções e avisos por cenário. A intervenção
-demonstrativa usa `[40, 3, 20, 3]` s, preservando o ciclo base de 66 s; é um
-benchmark sintético sem validação empírica. Avisos identificam quando nenhuma
-rota solicitada passa pelo cruzamento alterado, condição em que deltas sem
-mudança não demonstram efeito de tráfego.
+aparecem como indisponíveis. O painel de competição executa uma base e cinco
+políticas fixas para `node:02:04`, com a mesma rede, demanda, janela, semente,
+limite de escoamento e ciclo semafórico. Exibe os resultados e deltas de cada
+empresa, além do snapshot e identidade da referência. Se uma execução falhar,
+a API não publica resultados parciais. Esta competição é um benchmark sintético
+de operação semafórica, sem validação empírica; não modela ainda orçamento,
+obras, manutenção ou infraestrutura de rodovias. A API local mantém jobs em
+memória e não oferece cancelamento nesta etapa.
 
 ## Coordenadas e proveniência
 

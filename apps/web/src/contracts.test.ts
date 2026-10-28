@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchAurora, startComparison, startSimulation } from './api';
+import { fetchAurora, fetchTrafficCompetition, startComparison, startSimulation, startTrafficCompetition } from './api';
 import { assertSameSnapshot, parseCityMap, parseMetadata } from './contracts';
 import { toDisplayCollection } from './local-display';
 
@@ -16,6 +16,51 @@ const mapFixture = {
     nodes: { type: 'LocalFeatureCollection', features: [] },
   },
 };
+
+const competitionMetrics = {
+  trips_requested: 930, trips_completed: 930, trips_not_completed: 0,
+  mean_travel_time_seconds: 589, mean_speed_kmh: 36, mean_queue_length_meters: 1,
+};
+
+function trafficCompetitionFixture(status: 'queued' | 'running' | 'succeeded' | 'failed' = 'succeeded') {
+  const companies = [
+    ['via-equilibrio', 'Via Equilíbrio', 30],
+    ['eixo-norte-sul', 'Eixo Norte-Sul', 36],
+    ['eixo-leste-oeste', 'Eixo Leste-Oeste', 24],
+    ['corredor-norte', 'Corredor Norte', 42],
+    ['corredor-leste', 'Corredor Leste', 18],
+  ].map(([company_id, name, northSouth]) => {
+    const hasResults = status === 'succeeded';
+    return {
+      company_id, name, strategy: 'Estratégia de teste',
+      intervention: { node_id: 'node:02:04', phases: [
+        { movement: 'north_south', duration_seconds: northSouth },
+        { movement: 'all_red', duration_seconds: 3 },
+        { movement: 'east_west', duration_seconds: 60 - Number(northSouth) },
+        { movement: 'all_red', duration_seconds: 3 },
+      ] },
+      route_exposure: hasResults ? 'exposed' : null,
+      result: hasResults ? { simulation_id: `run-${company_id}`, engine: 'sumo', engine_version: '1.28.0' } : null,
+      metrics: hasResults ? competitionMetrics : null,
+      deltas_vs_baseline: hasResults ? {
+        trips_requested: 0, trips_completed: 0, trips_not_completed: 0,
+        mean_travel_time_seconds: 0, mean_speed_kmh: 0, mean_queue_length_meters: 0,
+      } : null,
+      warnings: [],
+    };
+  });
+  return {
+    competition: {
+      competition_id: 'competition-1', status,
+      common_parameters: { city_id: 'aurora-base-v1', snapshot_id: 'aurora-base-v1:abc', snapshot_hash: 'abc',
+        window_id: 'weekday_am_peak', seed: 42, drain_limit_seconds: 3600, trips_requested: 930, demand_hash: 'demand-hash' },
+      baseline_result: status === 'succeeded' ? { simulation_id: 'base-run', engine: 'sumo', engine_version: '1.28.0' } : null,
+      baseline_metrics: status === 'succeeded' ? competitionMetrics : null,
+      companies,
+      error: status === 'failed' ? { code: 'competition_failed', scenario: 'company', company_id: 'via-equilibrio', message: 'Falha simulada.' } : null,
+    },
+  };
+}
 
 describe('HTTP response contracts', () => {
   it('accepts the documented metadata and local geometry contract', () => {
@@ -74,10 +119,10 @@ describe('API integration', () => {
       comparison_id: 'comparison-1', status: 'succeeded',
       common_parameters: { city_id: 'aurora-base-v1', snapshot_id: 'aurora-base-v1:abc', snapshot_hash: 'abc',
         window_id: 'weekday_am_peak', seed: 42, drain_limit_seconds: 3600, trips_requested: 930, demand_hash: 'demand-hash' },
-      intervention: { node_id: 'node:02:00', phases: [
+      intervention: { node_id: 'node:02:04', phases: [
         { movement: 'north_south', duration_seconds: 40 }, { movement: 'all_red', duration_seconds: 3 },
         { movement: 'east_west', duration_seconds: 20 }, { movement: 'all_red', duration_seconds: 3 },
-      ] },
+      ] }, route_exposure: 'exposed',
       base_result: { simulation_id: 'base-1', engine: 'sumo', engine_version: '1.28.0' },
       intervention_result: { simulation_id: 'scenario-1', engine: 'sumo', engine_version: '1.28.0' },
       base_metrics: { trips_requested: 930, trips_completed: 920, trips_not_completed: 10, mean_travel_time_seconds: 60, mean_speed_kmh: 30, mean_queue_length_meters: 8 },
@@ -87,7 +132,7 @@ describe('API integration', () => {
     };
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body));
-      expect(body).toMatchObject({ seed: 42, drain_limit_seconds: 3600, intervention: { node_id: 'node:02:00' } });
+      expect(body).toMatchObject({ seed: 42, drain_limit_seconds: 3600, intervention: { node_id: 'node:02:04' } });
       expect(body.intervention.phases.map((phase: { duration_seconds: number }) => phase.duration_seconds)).toEqual([40, 3, 20, 3]);
       return new Response(JSON.stringify({ comparison }), { status: 202, headers: { 'Content-Type': 'application/json' } });
     });
@@ -96,6 +141,49 @@ describe('API integration', () => {
     expect(result.base_metrics?.mean_queue_length_meters).toBe(8);
     expect(result.deltas?.mean_travel_time_seconds).toBe(-2);
     expect(result.intervention_result?.simulation_id).toBe('scenario-1');
+    expect(result.route_exposure).toBe('exposed');
+  });
+
+  it('starts the five-company competition with the documented common inputs', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        city_id: 'aurora-base-v1', window_id: 'weekday_am_peak', seed: 42, drain_limit_seconds: 3600,
+      });
+      return new Response(JSON.stringify(trafficCompetitionFixture('queued')), { status: 202, headers: { 'Content-Type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await startTrafficCompetition('weekday_am_peak');
+    expect(result.status).toBe('queued');
+    expect(result.companies).toHaveLength(5);
+    expect(result.companies.map(({ intervention }) => intervention.phases.reduce((sum, phase) => sum + phase.duration_seconds, 0)))
+      .toEqual([66, 66, 66, 66, 66]);
+  });
+
+  it('accepts a complete succeeded competition with five paired results and deltas', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(trafficCompetitionFixture()), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    })));
+    const result = await fetchTrafficCompetition('competition-1', new AbortController().signal);
+    expect(result.baseline_result?.simulation_id).toBe('base-run');
+    expect(result.baseline_metrics?.trips_completed).toBe(930);
+    expect(result.companies).toHaveLength(5);
+    expect(result.companies[0].deltas_vs_baseline?.mean_travel_time_seconds).toBe(0);
+  });
+
+  it('rejects incomplete successful and partial in-progress competition responses', async () => {
+    const incomplete = trafficCompetitionFixture();
+    incomplete.competition.companies.pop();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(incomplete), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    })));
+    await expect(fetchTrafficCompetition('competition-1', new AbortController().signal)).rejects.toThrow(/cinco resultados pareados/);
+
+    const partial = trafficCompetitionFixture('running');
+    partial.competition.companies[0].metrics = competitionMetrics;
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(partial), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    })));
+    await expect(fetchTrafficCompetition('competition-1', new AbortController().signal)).rejects.toThrow(/resultados parciais/);
   });
 });
 

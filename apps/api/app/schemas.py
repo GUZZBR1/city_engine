@@ -163,6 +163,7 @@ class SimulationComparison(BaseModel):
     status: Literal["queued", "running", "succeeded", "failed"]
     common_parameters: ComparisonCommonParameters
     intervention: SignalTimingIntervention
+    route_exposure: Literal["exposed", "not_exposed", "unknown"] | None = None
     base_result: ComparisonResultIdentity | None = None
     intervention_result: ComparisonResultIdentity | None = None
     base_metrics: SimulationMetrics | None = None
@@ -175,3 +176,43 @@ class SimulationComparison(BaseModel):
 
 class ComparisonResponse(BaseModel):
     comparison: SimulationComparison
+
+
+class TrafficCompetitionRequest(BaseModel):
+    city_id: Literal["aurora-base-v1"]
+    window_id: str
+    seed: int = Field(default=42, ge=0)
+    drain_limit_seconds: int = Field(default=3600, ge=0, le=604800)
+
+
+class TrafficCompanyResult(BaseModel):
+    company_id: str
+    name: str
+    strategy: str
+    intervention: SignalTimingIntervention
+    route_exposure: Literal["exposed", "not_exposed", "unknown"] | None = None
+    result: ComparisonResultIdentity | None = None
+    metrics: SimulationMetrics | None = None
+    deltas_vs_baseline: SimulationMetricDeltas | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class TrafficCompetitionFailure(BaseModel):
+    code: str
+    scenario: Literal["baseline", "company"] | None = None
+    company_id: str | None = None
+    message: str
+
+
+class TrafficCompetition(BaseModel):
+    competition_id: str
+    status: Literal["queued", "running", "succeeded", "failed"]
+    common_parameters: ComparisonCommonParameters
+    baseline_result: ComparisonResultIdentity | None = None
+    baseline_metrics: SimulationMetrics | None = None
+    companies: list[TrafficCompanyResult]
+    error: TrafficCompetitionFailure | None = None
+
+
+class TrafficCompetitionResponse(BaseModel):
+    competition: TrafficCompetition

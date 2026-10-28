@@ -34,7 +34,8 @@ limitações do benchmark sintético.
 Rotas: `/api/v1/health`, `/api/v1/cities/aurora-base-v1`,
 `/api/v1/cities/aurora-base-v1/map`, `POST /api/v1/simulations` e
 `GET /api/v1/simulations/{simulation_id}`, `POST /api/v1/comparisons` e
-`GET /api/v1/comparisons/{comparison_id}`. Jobs ficam em memória neste MVP
+`GET /api/v1/comparisons/{comparison_id}`, `POST /api/v1/traffic-competitions`
+e `GET /api/v1/traffic-competitions/{competition_id}`. Jobs ficam em memória neste MVP
 local e se perdem quando a API reinicia. Simulações e comparações rodam em
 background após a resposta HTTP; ainda não há fila externa, persistência ou
 rota de cancelamento.
@@ -45,12 +46,12 @@ as métricas do motor.
 
 Uma comparação aceita os mesmos parâmetros da simulação e uma intervenção
 declarativa. O exemplo de Aurora mantém o ciclo em 66 s e altera somente as
-durações do controlador `node:02:00`:
+durações do controlador `node:02:04`, que é alcançado por rotas do pico da manhã:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/comparisons \
   -H 'Content-Type: application/json' \
-  -d '{"city_id":"aurora-base-v1","window_id":"weekday_am_peak","seed":42,"drain_limit_seconds":3600,"intervention":{"node_id":"node:02:00","phases":[{"movement":"north_south","duration_seconds":40},{"movement":"all_red","duration_seconds":3},{"movement":"east_west","duration_seconds":20},{"movement":"all_red","duration_seconds":3}]}}'
+  -d '{"city_id":"aurora-base-v1","window_id":"weekday_am_peak","seed":42,"drain_limit_seconds":3600,"intervention":{"node_id":"node:02:04","phases":[{"movement":"north_south","duration_seconds":40},{"movement":"all_red","duration_seconds":3},{"movement":"east_west","duration_seconds":20},{"movement":"all_red","duration_seconds":3}]}}'
 ```
 
 A resposta inicial contém o `comparison_id`; consulte
@@ -59,7 +60,21 @@ resultado inclui identidades das duas execuções, parâmetros comuns, métricas
 originais do motor e deltas intervenção menos base. Se qualquer execução falhar,
 a comparação não publica métricas nem deltas parciais. As métricas permanecem
 sintéticas e não representam validação empírica. Se nenhuma rota da janela usar
-arestas incidentes ao controlador alterado, o resultado traz um aviso de falta
-de exposição para contextualizar deltas sem mudança.
+uma transição que atravessa o controlador alterado, `route_exposure` será
+`not_exposed`. O estado `exposed` exige ao menos uma rota completa e válida com
+transição pelo nó. Arquivo ausente, malformado ou incompleto retorna
+`route_exposure: "unknown"`; esses estados também são explicados nos avisos por
+cenário.
+
+## Competição entre empresas viárias
+
+`POST /api/v1/traffic-competitions` recebe cidade, janela, semente e limite de
+escoamento. A API executa uma referência-base e cinco perfis fixos de
+temporização para `node:02:04`; as execuções usam o mesmo snapshot, demanda,
+semente, ciclo de 66 s e versão do SUMO. Consulte o `competition_id` retornado
+em `GET /api/v1/traffic-competitions/{competition_id}`. O resultado expõe cada
+empresa e seus deltas contra a base. Se uma das seis execuções falhar, métricas
+parciais não são publicadas. A competição ainda não simula orçamento, obras,
+manutenção ou intervenções em múltiplos tipos de via.
 O mapa usa `LocalFeatureCollection` em coordenadas cartesianas locais métricas,
 nunca GeoJSON RFC 7946.
