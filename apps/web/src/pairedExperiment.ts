@@ -17,6 +17,12 @@ export interface CreateExperimentInput { arena_manifest_id: string; arena_manife
 export type ExpectedExperimentPlan = Pick<CreateExperimentInput, 'window_ids' | 'strategies' | 'seeds' | 'metrics' | 'primary_metrics'>;
 export interface PairedExperiment { experiment_id: string; dto_schema_version: '1.0'; protocol_id: 'aurora-paired-multiseed-v1'; protocol_version: 1; manifest_sha256: string; arena_manifest_id: string; arena_manifest_sha256: string; status: ExperimentStatus; planned_pairs: number; completed_pairs: number; failed_pairs: number; running_pairs: number; missing_pairs: number; missing_pair_ids: string[]; planned_executions: number; attempts: number; sumo_runs_used: number; wall_clock_seconds_used: number; reserved_wall_clock_seconds: number; cancellation_requested: boolean; stop_reason: string | null; error_code: string | null; manifest: Record<string, unknown>; limitations: string[]; pairs: ExperimentPair[]; summaries_by_window: WindowSummary[]; }
 export interface ExperimentCancellation { experiment_id: string; status: 'running' | 'cancelled'; cancellation_requested: boolean; }
+export function isCurrentExperimentRequest(requestGeneration: number, currentGeneration: number, requestId: string, selectedId: string | null): boolean {
+  return requestGeneration === currentGeneration && requestId === selectedId;
+}
+export function shouldSelectCreatedExperiment(requestGeneration: number, currentGeneration: number): boolean {
+  return requestGeneration === currentGeneration;
+}
 export function rememberCancellationAcknowledgement(acknowledgedIds: ReadonlySet<string>, experimentId: string): Set<string> {
   return new Set(acknowledgedIds).add(experimentId);
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { cancelAndRefreshPairedExperiment, createPairedExperiment, computePolicySha256, fetchPairedExperiment, pairOutcome, rememberCancellationAcknowledgement, retryPairedExperiment, type CreateExperimentInput, type DeltaValue, type ExpectedExperimentPlan, type MetricValue, type PairedExperiment, type MultiSeedBudget, type StrategyInput } from './pairedExperiment';
+import { cancelAndRefreshPairedExperiment, createPairedExperiment, computePolicySha256, fetchPairedExperiment, isCurrentExperimentRequest, pairOutcome, rememberCancellationAcknowledgement, retryPairedExperiment, shouldSelectCreatedExperiment, type CreateExperimentInput, type DeltaValue, type ExpectedExperimentPlan, type MetricValue, type PairedExperiment, type MultiSeedBudget, type StrategyInput } from './pairedExperiment';
 import './PairedExperimentPanel.css';
 
 const windowOptions = [
@@ -184,13 +184,13 @@ export function PairedExperimentPanel() {
     const poll = async () => {
       try {
         const updated = await fetchPairedExperiment(experiment.experiment_id, controller.signal, expectedPlan ?? undefined);
-        if (controller.signal.aborted || selectionGeneration.current !== generation || selectedExperimentId.current !== experiment.experiment_id) return;
+        if (controller.signal.aborted || !isCurrentExperimentRequest(generation, selectionGeneration.current, experiment.experiment_id, selectedExperimentId.current)) return;
         reconcileCancellationAcknowledgement(updated);
         setExperiment(updated);
         setError('');
         if (updated.status === 'queued' || updated.status === 'running') timer = window.setTimeout(poll, 1500);
       } catch (reason) {
-        if (!controller.signal.aborted && selectionGeneration.current === generation && selectedExperimentId.current === experiment.experiment_id) {
+        if (!controller.signal.aborted && isCurrentExperimentRequest(generation, selectionGeneration.current, experiment.experiment_id, selectedExperimentId.current)) {
           setError(reason instanceof Error ? reason.message : 'Não foi possível atualizar o experimento.');
           timer = window.setTimeout(poll, 3000);
         }
@@ -221,7 +221,7 @@ export function PairedExperimentPanel() {
   return <section className="simulation-panel paired-panel" aria-labelledby="paired-experiment-title">
     <div className="section-heading"><div><p className="eyebrow">PROTOCOLO DE EXPERIMENTO PAREADO · MULTI-SEED</p><h2 id="paired-experiment-title">Experimento SUMO por janela</h2></div><span className="synthetic-pill">AURORA SINTÉTICA</span></div>
     <p className="simulation-description">Compare cada estratégia com o mesmo baseline, snapshot, demanda expandida, janela e seed. Seeds variam somente a aleatoriedade operacional do SUMO; não amostram demanda. Resumos e incerteza permanecem separados por janela.</p>
-    <ExperimentCreateForm onCreateStarted={() => { setCreatedWhileViewingAnotherExperiment(''); return beginSelection(selectedExperimentId.current); }} onCreated={(created, input, generation) => { if (!selectExperiment(created, generation)) { setCreatedWhileViewingAnotherExperiment(created.experiment_id); return; } const plan = { window_ids: input.window_ids, strategies: input.strategies, seeds: input.seeds, metrics: input.metrics, primary_metrics: input.primary_metrics }; setExpectedPlan(plan); setLookupId(created.experiment_id); setFailedLookupId(''); setError(''); }} />
+    <ExperimentCreateForm onCreateStarted={() => { setCreatedWhileViewingAnotherExperiment(''); return beginSelection(selectedExperimentId.current); }} onCreated={(created, input, generation) => { if (!shouldSelectCreatedExperiment(generation, selectionGeneration.current)) { setCreatedWhileViewingAnotherExperiment(created.experiment_id); return; } if (!selectExperiment(created, generation)) return; const plan = { window_ids: input.window_ids, strategies: input.strategies, seeds: input.seeds, metrics: input.metrics, primary_metrics: input.primary_metrics }; setExpectedPlan(plan); setLookupId(created.experiment_id); setFailedLookupId(''); setError(''); }} />
     {createdWhileViewingAnotherExperiment && <CreatedExperimentNotice experimentId={createdWhileViewingAnotherExperiment} />}
     <form className="paired-lookup" onSubmit={lookup}><label htmlFor="paired-lookup-id">Acompanhar experimento existente</label><input id="paired-lookup-id" value={lookupId} onChange={(event) => setLookupId(event.target.value)} placeholder="experiment_id" required /><button className="quiet-button" disabled={busy} type="submit">{busy ? 'Carregando…' : 'Carregar'}</button></form>
     {error && <div className="paired-error" role="alert"><strong>Não foi possível carregar ou atualizar o experimento.</strong><p>{error}</p><button className="quiet-button" type="button" disabled={busy} onClick={retry}>Tentar novamente</button></div>}

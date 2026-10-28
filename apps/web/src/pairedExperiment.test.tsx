@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CreatedExperimentNotice, ExperimentDetails, MetricProvenanceCell, PairedExperimentPanel } from './PairedExperimentPanel';
-import { cancelAndRefreshPairedExperiment, computePolicySha256, parseExperimentCancellation, parsePairedExperiment, rememberCancellationAcknowledgement, type ExpectedExperimentPlan } from './pairedExperiment';
+import { cancelAndRefreshPairedExperiment, computePolicySha256, isCurrentExperimentRequest, parseExperimentCancellation, parsePairedExperiment, rememberCancellationAcknowledgement, shouldSelectCreatedExperiment, type ExpectedExperimentPlan } from './pairedExperiment';
 import { failedPairWithStaleDeltaFixture, pairedExperimentContractFixture } from './pairedExperiment.contract.fixture';
 
 const copy = (): { experiment: Record<string, any> } => structuredClone(pairedExperimentContractFixture) as { experiment: Record<string, any> };
@@ -90,6 +90,20 @@ describe('paired experiment form accessibility markup', () => {
     expect(html).toContain('<code>paired-exp-created-002</code>');
   });
 
+  it('retains a created experiment ID when its response arrives after selection changed', () => {
+    const createGeneration = 8;
+    const currentGeneration = 9;
+    expect(shouldSelectCreatedExperiment(createGeneration, currentGeneration)).toBe(false);
+    expect(shouldSelectCreatedExperiment(currentGeneration, currentGeneration)).toBe(true);
+  });
+
+  it('disables existing experiment actions while a retry lookup is pending', () => {
+    const experiment = parsePairedExperiment(structuredClone(failedPairWithStaleDeltaFixture));
+    const html = renderToStaticMarkup(<ExperimentDetails experiment={experiment} onRetry={() => {}} onResume={() => {}} onCancel={() => {}} busy />);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Atualizar estado<\/button>/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Solicitando retomada…<\/button>/);
+  });
+
   it('uses a labeled, explicit window fieldset and exposes loading/error accessible regions', () => {
     const html = renderToStaticMarkup(<PairedExperimentPanel />);
     expect(html).toContain('<fieldset');
@@ -151,6 +165,14 @@ describe('paired experiment form accessibility markup', () => {
 });
 
 describe('mobility-experiments HTTP adapter', () => {
+  it('rejects a poll response started before cancellation invalidated the selection generation', () => {
+    const experimentId = 'paired-exp-001';
+    const pollGeneration = 11;
+    const generationAfterCancelStarted = pollGeneration + 1;
+    expect(isCurrentExperimentRequest(pollGeneration, generationAfterCancelStarted, experimentId, experimentId)).toBe(false);
+    expect(isCurrentExperimentRequest(generationAfterCancelStarted, generationAfterCancelStarted, experimentId, experimentId)).toBe(true);
+  });
+
   const createInput = {
     arena_manifest_id: 'arena-manifest-001', arena_manifest_sha256: 'a'.repeat(64), round_index: 1,
     instance_id: 'aurora-instance-001', city_id: 'aurora-base-v1' as const,
