@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 650" role="img" aria-labelledby="title desc">
+  <title id="title">Aurora, cidade-base sintética</title>
+  <desc id="desc">Diagrama esquemático dos cinco distritos urbanos, da malha viária e do entorno rural externo. As posições são ilustrativas e não são coordenadas geográficas.</desc>
+  <defs>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M48 0H0V48" fill="none" stroke="#d5dfd8" stroke-width="1"/></pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#153b37" flood-opacity=".09"/></filter>
+  </defs>
+  <rect width="1200" height="650" rx="28" fill="#f5f4ef"/>
+  <text x="64" y="68" fill="#a15d35" font-family="monospace" font-size="14" letter-spacing="3">AURORA / BLUEPRINT 01</text>
+  <text x="64" y="113" fill="#183d38" font-family="sans-serif" font-size="34" font-weight="700">Uma cidade-base para experimentos reproduzíveis</text>
+  <text x="64" y="145" fill="#5e716b" font-family="sans-serif" font-size="17">Esquema conceitual · sem localização geográfica · parâmetros sintéticos documentados</text>
+  <g filter="url(#shadow)">
+    <rect x="64" y="184" width="790" height="392" rx="20" fill="#fffefa"/>
+  </g>
+  <rect x="90" y="210" width="738" height="340" rx="12" fill="url(#grid)"/>
+  <g fill="#dbe9df" stroke="#9ebcad" stroke-width="2">
+    <path d="M120 235h178v108H120z"/><path d="M323 235h218v108H323z"/><path d="M566 235h230v108H566z"/>
+    <path d="M120 365h178v145H120z"/><path d="M323 365h218v145H323z"/><path d="M566 365h230v145H566z"/>
+  </g>
+  <g fill="#1a4942" font-family="sans-serif" text-anchor="middle">
+    <text x="209" y="281" font-size="17" font-weight="700">Oeste verde</text><text x="209" y="305" font-size="13">parques · baixa densidade</text>
+    <text x="432" y="281" font-size="17" font-weight="700">Centro</text><text x="432" y="305" font-size="13">serviços · comércio · transporte</text>
+    <text x="681" y="281" font-size="17" font-weight="700">Leste logístico</text><text x="681" y="305" font-size="13">logística · indústria leve</text>
+    <text x="209" y="426" font-size="17" font-weight="700">Sul misto</text><text x="209" y="450" font-size="13">moradia · comércio · saúde</text>
+    <text x="432" y="426" font-size="17" font-weight="700">Norte residencial</text><text x="432" y="450" font-size="13">moradia · escolas · serviços</text>
+    <text x="681" y="426" font-size="17" font-weight="700">Malha de referência</text><text x="681" y="450" font-size="13">rede 5 × 5 · 74 arcos dirigidos</text>
+  </g>
+  <path d="M302 225v300M555 225v300" stroke="#b76c42" stroke-width="5" stroke-dasharray="12 9" opacity=".82"/>
+  <g fill="#2d628d" stroke="#fff" stroke-width="3">
+    <circle cx="302" cy="372" r="9"/><circle cx="555" cy="372" r="9"/>
+  </g>
+  <g filter="url(#shadow)"><rect x="885" y="184" width="251" height="392" rx="20" fill="#183d38"/></g>
+  <text x="916" y="228" fill="#bdd7c9" font-family="monospace" font-size="13" letter-spacing="2">BASE SINTÉTICA</text>
+  <text x="916" y="276" fill="#fffefa" font-family="sans-serif" font-size="28" font-weight="700">Aurora</text>
+  <path d="M916 296h188" stroke="#4f7066"/>
+  <text x="916" y="334" fill="#bdd7c9" font-family="monospace" font-size="12">POPULAÇÃO</text><text x="916" y="364" fill="#fffefa" font-family="sans-serif" font-size="25" font-weight="700">67.250</text>
+  <text x="916" y="409" fill="#bdd7c9" font-family="monospace" font-size="12">ÁREA DE REFERÊNCIA</text><text x="916" y="439" fill="#fffefa" font-family="sans-serif" font-size="25" font-weight="700">36 km²</text>
+  <text x="916" y="484" fill="#bdd7c9" font-family="monospace" font-size="12">POSTOS DE TRABALHO</text><text x="916" y="514" fill="#fffefa" font-family="sans-serif" font-size="25" font-weight="700">24.000</text>
+  <text x="64" y="617" fill="#5e716b" font-family="sans-serif" font-size="14">Visualização ilustrativa dos parâmetros do benchmark — não é mapa cadastral nem dado observado.</text>
+</svg>
