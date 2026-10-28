@@ -24,7 +24,10 @@ describe('ArenaPanel action evidence', () => {
     } as unknown as ArenaPanelViewModel;
     const html = renderToStaticMarkup(createElement(ArenaPanel, { viewModel, horizonRounds: 1, onHorizonChange: vi.fn(), onStart: vi.fn() }));
     expect(html).toContain('políticas determinísticas de benchmark');
-    expect(html).toContain('não são agentes treinados nem tomam decisões autônomas');
+    expect(html).toContain('não são agentes treinados e não tomam decisões autônomas');
+    expect(html).toContain('um baseline sem ação e quatro heurísticas semafóricas');
+    expect(html).toContain('cinco referências sem ação');
+    expect(html).toContain('a ausência de evidência SUMO, por si só, não confirma que o motor estava indisponível');
     expect(html).toContain('PARTICIPANTES');
     expect(html).toContain('Cruzamento</dt><dd>node:02:04');
     expect(html).toContain('Janela</dt><dd>weekday-am');
@@ -45,7 +48,7 @@ describe('ArenaPanel action evidence', () => {
       viewModel: { ...viewModel, rounds: [] }, horizonRounds: 1, onHorizonChange: vi.fn(), onStart: vi.fn(),
     }));
     expect(legacyHtml).toContain('Cinco políticas de referência');
-    expect(legacyHtml).toContain('não são agentes treinados nem tomam decisões autônomas');
+    expect(legacyHtml).toContain('não são agentes treinados e não tomam decisões autônomas');
     expect(legacyHtml).not.toContain('Comparação SUMO por instância');
   });
 });

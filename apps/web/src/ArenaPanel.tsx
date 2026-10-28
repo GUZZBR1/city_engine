@@ -191,7 +191,7 @@ export function ArenaPanel({
         <div>
           <p className="arena-eyebrow">SIMULAÇÃO ANUAL</p>
           <h2 id="arena-panel-title">Arena anual · Aurora sintética</h2>
-          <p className="arena-panel-description">Os cinco participantes são políticas determinísticas de benchmark para temporização semafórica; não são agentes treinados nem tomam decisões autônomas. A comparação usa Aurora sintética. Cruzamento e janela aparecem na evidência de cada execução quando a resposta os identifica. Resultados sintéticos para exploração; sem ranking, vencedor ou score.</p>
+          <p className="arena-panel-description">Os cinco participantes são políticas determinísticas de benchmark; não são agentes treinados e não tomam decisões autônomas. No modo com SUMO, a referência inclui um baseline sem ação e quatro heurísticas semafóricas; sem SUMO, são cinco referências sem ação. A resposta identifica as políticas e a evidência disponível; a ausência de evidência SUMO, por si só, não confirma que o motor estava indisponível. A comparação usa Aurora sintética; cruzamento e janela aparecem na evidência quando identificados. Resultados sintéticos para exploração; sem ranking, vencedor ou score.</p>
         </div>
         <span className="arena-synthetic-label"><span aria-hidden="true">◇</span> AURORA SINTÉTICA</span>
       </header>
