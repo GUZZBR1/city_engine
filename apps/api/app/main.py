@@ -1,8 +1,11 @@
 import os
+from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from simulation import SimulationError
 
 from .arena_jobs import ArenaNotFoundError, create_arena, get_arena, run_arena
 from .arena_schemas import ArenaRequest, ArenaResponse
@@ -33,6 +36,25 @@ from .simulation_jobs import (
     run_comparison,
     run_job,
 )
+from .multiseed_schemas import (
+    ExperimentCancelResponse,
+    ExperimentCreateResponse,
+    ExperimentResponse,
+    ExperimentRetryRequest,
+    MultiSeedManifestRequest,
+)
+from .multiseed_experiments import (
+    ExperimentBudgetError,
+    ExperimentConflictError,
+    ExperimentNotFoundError,
+    ExperimentStateError,
+    create_experiment,
+    get_experiment,
+    list_resumable_experiments,
+    retry_experiment,
+    cancel_experiment,
+    run_experiment,
+)
 
 
 def _local_cors_origin() -> str:
@@ -51,10 +73,25 @@ def _local_cors_origin() -> str:
     return origin
 
 
+_mobility_recovery_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="aurora-mobility-recovery")
+
+
+def _dispatch_persisted_mobility_experiments() -> None:
+    for experiment_id in list_resumable_experiments():
+        _mobility_recovery_pool.submit(run_experiment, experiment_id)
+
+
+@asynccontextmanager
+async def _lifespan(_app):
+    _dispatch_persisted_mobility_experiments()
+    yield
+
+
 app = FastAPI(
     title="Urban Arena API",
     description="Consulta Aurora sintética e solicita simulações-base locais.",
     version="0.1.0",
+    lifespan=_lifespan,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -208,3 +245,79 @@ def arena_status(arena_id: str) -> ArenaResponse:
         return ArenaResponse(arena=get_arena(arena_id))
     except ArenaNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Arena não encontrada.") from exc
+
+
+@app.post(
+    "/api/v1/mobility-experiments",
+    response_model=ExperimentCreateResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={400: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    tags=["mobility-experiments"],
+    summary="Criar protocolo pareado Aurora multi-semente",
+)
+def start_mobility_experiment(request: MultiSeedManifestRequest, background_tasks: BackgroundTasks) -> ExperimentCreateResponse:
+    try:
+        experiment = create_experiment(request)
+    except ExperimentBudgetError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ExperimentConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (ValueError, SimulationError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if experiment.status in {"queued", "partial"} and experiment.missing_pairs > 0:
+        background_tasks.add_task(run_experiment, experiment.experiment_id)
+    return ExperimentCreateResponse(experiment=experiment)
+
+
+@app.get(
+    "/api/v1/mobility-experiments/{experiment_id}",
+    response_model=ExperimentResponse,
+    responses={404: {"model": ErrorResponse}},
+    tags=["mobility-experiments"],
+    summary="Consultar protocolo, pares, tentativas e resumos por janela",
+)
+def mobility_experiment_status(experiment_id: str) -> ExperimentResponse:
+    try:
+        return ExperimentResponse(experiment=get_experiment(experiment_id))
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Experimento de mobilidade não encontrado.") from exc
+
+
+@app.post(
+    "/api/v1/mobility-experiments/{experiment_id}/retry",
+    response_model=ExperimentResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    tags=["mobility-experiments"],
+    summary="Retomar pares com falha recuperável dentro do orçamento",
+)
+def resume_mobility_experiment(experiment_id: str, request: ExperimentRetryRequest, background_tasks: BackgroundTasks) -> ExperimentResponse:
+    try:
+        experiment = retry_experiment(experiment_id, request.pair_ids)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Experimento de mobilidade não encontrado.") from exc
+    except ExperimentStateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if experiment.status in {"queued", "partial"} and experiment.missing_pairs > 0:
+        background_tasks.add_task(run_experiment, experiment.experiment_id)
+    return ExperimentResponse(experiment=experiment)
+
+
+@app.post(
+    "/api/v1/mobility-experiments/{experiment_id}/cancel",
+    response_model=ExperimentCancelResponse,
+    responses={404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+    tags=["mobility-experiments"],
+    summary="Cancelar trabalho de mobilidade pendente",
+)
+def stop_mobility_experiment(experiment_id: str) -> ExperimentCancelResponse:
+    try:
+        experiment = cancel_experiment(experiment_id)
+    except ExperimentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Experimento de mobilidade não encontrado.") from exc
+    except ExperimentStateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return ExperimentCancelResponse(experiment_id=experiment.experiment_id, status=experiment.status,
+        cancellation_requested=experiment.cancellation_requested)

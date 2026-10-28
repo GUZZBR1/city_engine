@@ -6,6 +6,7 @@ import { ArenaPanel, type ArenaPanelStatus } from './ArenaPanel';
 import { fetchArena, startArena } from './arenaApi';
 import { createArenaRequestSequence, isArenaPollingStatus, toArenaPanelViewModel } from './arenaViewModel';
 import type { ArenaPanelViewModel } from './ArenaPanel';
+import { PairedExperimentPanel } from './PairedExperimentPanel';
 
 type LoadState = 'loading' | 'ready' | 'error';
 type LayerId = 'districts' | 'edges' | 'nodes';
@@ -399,6 +400,7 @@ export default function App() {
           <AnnualArenaPanel />
           <SimulationPanel />
           <ScenarioComparisonPanel />
+          <PairedExperimentPanel />
           <FeatureTable data={data} />
           <footer className="page-footer"><span>URBAN TWIN ARENA <b>·</b> AURORA SINTÉTICA</span><span>Geometria fornecida pela API · espaço cartesiano local</span></footer>
         </>}
