@@ -3,7 +3,15 @@ from __future__ import annotations
 import pytest
 from app import arena_jobs, main
 from app.arena_schemas import ArenaRequest
+from app.policy_registry import (
+    InvalidPolicyConfigurationError,
+    UnknownPolicyError,
+    build_benchmark_policies,
+    instantiate_policy,
+    policy_version,
+)
 from urban_arena.actions import ActionExecutionEvidence
+from urban_arena.policies import DeterministicReferencePolicy, FixedSignalTimingPolicy
 from fastapi import BackgroundTasks, HTTPException
 
 
@@ -67,6 +75,7 @@ def test_arena_endpoint_queues_then_publishes_complete_real_runner_result():
     assert {item.current_round_index for item in published.instances} == {1}
     assert len({item.agent_id for item in published.instances}) == 5
     assert len({item.policy_id for item in published.instances}) == 5
+    assert all(len(item.policy_sha256) == 64 for item in published.instances)
     assert all(item.current_state.city_state_hash == item.current_city_state_hash for item in published.instances)
     assert all(item.current_state.population.total_residents > 0 for item in published.instances)
     assert len(published.rounds) == 1
@@ -77,6 +86,10 @@ def test_arena_endpoint_queues_then_publishes_complete_real_runner_result():
         assert item["proposal"]["experiment_id"] == published.experiment_id
         assert item["proposal"]["round_index"] == 1
         assert len(item["proposal"]["proposal_record_hash"]) == 64
+        assert item["proposal"]["policy_sha256"] == next(
+            instance.policy_sha256 for instance in published.instances
+            if instance.instance_id == item["instance_id"]
+        )
         assert item["decision"]["proposal_id"] == item["proposal"]["proposal_id"]
         assert item["decision"]["decision"] in {"accepted", "rejected", "no_action"}
         assert item["indicators"]
@@ -133,6 +146,13 @@ def test_sumo_available_arena_compares_four_signal_policies_with_a_reference(mon
     record = arena_jobs._jobs[created.arena.arena_id]
     assert len(record.policies) == 5
     assert sum(bool(policy.signal_changes) for policy in record.policies if hasattr(policy, "signal_changes")) == 4
+    assert [policy.policy_id for policy in record.policies] == [
+        "baseline-no-action-v1",
+        "heuristic-ns-node-0200-v1",
+        "heuristic-ew-node-0200-v1",
+        "heuristic-ns-node-0204-v1",
+        "heuristic-coordinated-two-nodes-v1",
+    ]
 
     arena_jobs.run_arena(created.arena.arena_id)
     completed = arena_jobs.get_arena(created.arena.arena_id)
@@ -144,6 +164,57 @@ def test_sumo_available_arena_compares_four_signal_policies_with_a_reference(mon
         if item.action_execution_evidence is not None:
             assert item.action_execution_evidence["details"]["scope"] == "simulation_window"
             assert item.decision.accepted
+
+
+def test_registry_dispatch_is_deterministic_and_hashes_are_verifiable():
+    policies = build_benchmark_policies(sumo_available=True)
+    repeated = build_benchmark_policies(sumo_available=True)
+
+    assert [type(policy) for policy in policies] == [
+        DeterministicReferencePolicy,
+        FixedSignalTimingPolicy,
+        FixedSignalTimingPolicy,
+        FixedSignalTimingPolicy,
+        FixedSignalTimingPolicy,
+    ]
+    assert [(policy.policy_id, policy.policy_version) for policy in policies] == [
+        (policy.policy_id, policy.policy_version) for policy in repeated
+    ]
+    for policy in policies:
+        version = policy_version(policy.policy_id)
+        assert version.verify_hash()
+        assert version.policy_sha256 == policy_version(policy.policy_id).policy_sha256
+        assert version.version == policy.policy_version
+
+    created, _ = _post_arena(1)
+    runner = arena_jobs._jobs[created.arena.arena_id].runner
+    observation = runner.observation(runner.instances[0].instance_id, 1)
+    assert policies[1].propose(observation) == repeated[1].propose(observation)
+
+
+def test_registry_rejects_unknown_policy_and_non_registered_configuration():
+    with pytest.raises(UnknownPolicyError):
+        instantiate_policy("client-supplied-policy")
+    with pytest.raises(InvalidPolicyConfigurationError):
+        instantiate_policy(
+            "heuristic-ns-node-0200-v1",
+            configuration={"signal_changes": [{"node_id": "client-node", "phases": []}]},
+        )
+    with pytest.raises(InvalidPolicyConfigurationError):
+        instantiate_policy("baseline-no-action-v1", configuration={"actions": ["arbitrary"]})
+    with pytest.raises(InvalidPolicyConfigurationError):
+        instantiate_policy("baseline-no-action-v1", configuration=object())
+
+
+def test_registry_validation_failure_does_not_create_or_publish_arena(monkeypatch):
+    def reject_registry(*, sumo_available):
+        raise InvalidPolicyConfigurationError("invalid registered policy")
+
+    monkeypatch.setattr(arena_jobs, "build_benchmark_policies", reject_registry)
+    with pytest.raises(InvalidPolicyConfigurationError):
+        arena_jobs.create_arena(ArenaRequest(horizon_rounds=1))
+
+    assert arena_jobs._jobs == {}
 
 
 @pytest.mark.parametrize("horizon_rounds", [0, 11])
@@ -185,6 +256,30 @@ def test_participant_failure_is_reported_without_publishing_any_round():
     assert failed.error.code == "participant_failed"
     assert failed.error.round_index == 1
     assert failed.error.instance_id == record.runner.instances[4].instance_id
+    assert failed.rounds == []
+    assert failed.completed_rounds == 0
+    assert {item.current_round_index for item in failed.instances} == {0}
+
+
+def test_invalid_proposal_fails_closed_without_publishing_partial_round():
+    created, _ = _post_arena(1)
+    arena_id = created.arena.arena_id
+    record = arena_jobs._jobs[arena_id]
+
+    class InvalidProposalPolicy:
+        agent_id = record.policies[-1].agent_id
+        policy_id = record.policies[-1].policy_id
+        policy_version = record.policies[-1].policy_version
+
+        def propose(self, observation):
+            return {"unexpected": "unvalidated proposal"}
+
+    record.policies = (*record.policies[:4], InvalidProposalPolicy())
+    arena_jobs.run_arena(arena_id)
+    failed = arena_jobs.get_arena(arena_id)
+
+    assert failed.status == "failed"
+    assert failed.error.code == "arena_round_failed"
     assert failed.rounds == []
     assert failed.completed_rounds == 0
     assert {item.current_round_index for item in failed.instances} == {0}
