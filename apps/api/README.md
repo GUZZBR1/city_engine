@@ -62,6 +62,13 @@ agentes IA treinados. Sem os binários, a Arena usa cinco políticas de referên
 sem ações. Nenhum modo produz ranking agregado. A falha é retornada como job `failed` com código e mensagem,
 preservando detalhes apenas das rodadas serializadas integralmente.
 
+As cinco políticas do benchmark são resolvidas por um registry fechado da API.
+Cada instância e proposta inclui `policy_id`, `policy_version` e `policy_sha256`;
+o hash identifica a versão, categoria, configuração fixa e implementação registrada.
+O cliente não escolhe código, versão ou configuração de política. A Arena mantém
+o pipeline de observação congelada, proposta, validação/arbitragem e execução com
+commit atômico das cinco instâncias.
+
 Jobs de simulação, comparação e Arena usam memória do processo e
 `BackgroundTasks`; reiniciar a API perde os jobs. Não há fila externa,
 persistência durável nem rota de cancelamento. A execução da Arena calcula os

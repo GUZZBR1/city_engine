@@ -118,6 +118,7 @@ class ArenaInstanceDTO(BaseModel):
     agent_id: str
     policy_id: str
     policy_version: str
+    policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     initial_city_state_hash: str
     current_city_state_hash: str
     current_round_index: int = Field(ge=0, le=10)
@@ -224,6 +225,7 @@ class ArenaProposalDTO(BaseModel):
     budget_request: int | None
     policy_id: str
     policy_version: str
+    policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     proposal_record_hash: str
 
 
