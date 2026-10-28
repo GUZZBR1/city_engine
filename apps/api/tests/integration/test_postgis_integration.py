@@ -46,11 +46,18 @@ def test_postgis_migrations_integrity_spatial_query_recovery_and_concurrency():
                 server_settings={"search_path": f'"{schema}",public'},
             )
             repo = PostgresRepository(pool)
+            server_version = await pool.fetchval("SELECT version()")
+            postgis_version = await pool.fetchval("SELECT postgis_full_version()")
+            print(f"PostgreSQL: {server_version}")
+            print(f"PostGIS: {postgis_version}")
             await repo.apply_migrations()
             await repo.apply_migrations()
 
-            migration_count = await pool.fetchval("SELECT count(*) FROM schema_migrations")
-            assert migration_count == 2
+            migrations = await pool.fetch("SELECT version FROM schema_migrations ORDER BY version")
+            assert [row["version"] for row in migrations] == [
+                "001_initial_postgis.sql",
+                "002_runs_require_replay_dataset.sql",
+            ]
 
             suffix = uuid.uuid4().hex
             source_id = f"integration-source:{suffix}"

@@ -8,4 +8,39 @@ Dataset rows are immutable versions keyed by `(dataset_id, artifact_sha256)`. A 
 
 Observation wall time is stored in `TIMESTAMP WITHOUT TIME ZONE`; a separate nullable offset in minutes preserves an explicit fixed offset. A naive source timestamp remains naive. The adapter never assigns UTC. Offsets with sub-minute precision are rejected because the storage contract records minute precision.
 
-Unit tests use a fake pool and validate SQL construction, JSON serialization, dataset-version idempotency, migration tracking, and timestamp handling. They do not start PostgreSQL. The separate opt-in integration suite is `apps/api/tests/integration/test_postgis_integration.py`; run it with `CITY_ENGINE_TEST_DATABASE_URL` set to a **dedicated disposable database** using `uv run --project apps/api --with pytest pytest apps/api/tests/integration -q`. It creates/drops an isolated schema and verifies both migrations, constraints, inserts, spatial queries, restart recovery, and concurrent idempotent inserts. The test database needs PostGIS installed or permission to create the extension. A run without that URL skips the integration test, so a passing unit suite is not evidence of PostgreSQL/PostGIS execution.
+Unit tests use a fake pool and validate SQL construction, JSON serialization, dataset-version idempotency, migration tracking, and timestamp handling. They do not start PostgreSQL. The opt-in integration suite at `apps/api/tests/integration/test_postgis_integration.py` uses a real database, creates/drops a unique schema, applies migrations 001/002 twice, prints the server and PostGIS build versions, and verifies immutable dataset versions, FK/check constraints, replay-run version matching, spatial geometry/`ST_DWithin`, pool reconnect recovery, and concurrent insert idempotency.
+
+## Reproduce with Docker Compose
+
+The disposable Compose service pins PostgreSQL 16 with the `postgis/postgis:16-3.6` image family (currently PostgreSQL 16 and PostGIS 3.6.4); the test output records the exact server and extension build versions used. Docker Engine and Compose v2 are required.
+
+From the repository root:
+
+```sh
+docker compose -f apps/api/compose.postgis.integration.yml up --detach --wait
+docker compose -f apps/api/compose.postgis.integration.yml exec -T postgis \
+  psql -U city_engine_test -d city_engine_test -c 'SELECT version(), postgis_full_version();'
+CITY_ENGINE_TEST_DATABASE_URL=postgresql://city_engine_test:city_engine_test@127.0.0.1:55432/city_engine_test \
+  uv run --project apps/api --with pytest pytest -s apps/api/tests/integration/test_postgis_integration.py -q
+docker compose -f apps/api/compose.postgis.integration.yml down --volumes
+```
+
+The database is created for this test only and the last command removes its container and data volume. If the test command fails, run the cleanup command separately after collecting the failure output. Never point `CITY_ENGINE_TEST_DATABASE_URL` at a database with data to keep: the test drops its uniquely named schema on completion.
+
+## Local PostgreSQL alternative
+
+When Docker is unavailable on Debian/Ubuntu, install PostgreSQL 16 and its matching PostGIS package, then create a dedicated test role/database:
+
+```sh
+sudo apt-get install postgresql-16 postgresql-16-postgis-3
+sudo -u postgres psql -d postgres <<'SQL'
+CREATE ROLE city_engine_test LOGIN SUPERUSER PASSWORD 'city_engine_test';
+CREATE DATABASE city_engine_test OWNER city_engine_test;
+SQL
+CITY_ENGINE_TEST_DATABASE_URL=postgresql://city_engine_test:city_engine_test@127.0.0.1:5432/city_engine_test \
+  uv run --project apps/api --with pytest pytest -s apps/api/tests/integration/test_postgis_integration.py -q
+```
+
+Record the printed `PostgreSQL` and `PostGIS` versions with the result. This path requires host administrator access and PostgreSQL configured to listen on `127.0.0.1`. Do not reuse a production or valuable development database.
+
+A run without `CITY_ENGINE_TEST_DATABASE_URL` skips the integration test; fake-pool unit tests and a skipped integration test are not evidence of PostgreSQL/PostGIS execution.
