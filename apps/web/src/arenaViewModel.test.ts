@@ -40,7 +40,7 @@ function makeJob(overrides: Record<string, unknown> = {}): ArenaJobDTO {
     round_record_hash: 'round-record',
     decision: { decision: 'no_action', accepted: false, code: 'no_action', proposal_id: 'proposal', idempotency_key: 'key', proposal_hash: 'proposal-hash', actions: [], budget: null },
     ...(instance_id === 'instance-1' ? { action_execution_evidence: evidence } : {}),
-    proposal: {},
+    proposal: { actions: instance_id === 'instance-1' ? [{ action_id: 'signal-action-1', action_type: 'signal_timing_change', target_id: 'node:02:04' }] : [] },
     indicators: [{
       indicator_id: 'population_total', value: null, null_reason: 'source_unavailable', unit: 'pessoas', unit_basis: 'residentes',
       period: 'ano 1', period_type: 'annual', territory: 'cidade', coverage: { status: 'complete', spatial: 'city', temporal: 'annual', numerator: 100, denominator: 100, filters: [] },
@@ -86,6 +86,7 @@ describe('Arena view model adapter', () => {
       windowId: 'weekday-am', routeExposure: 'exposed', seed: 42, engine: 'sumo', engineVersion: '1.20', snapshotId: 'snapshot-1', snapshotHash: 'snapshot-hash', limitations: ['synthetic'],
       baseMetrics: { mean_travel_time_seconds: 120 }, interventionMetrics: { mean_travel_time_seconds: 110 }, deltas: { mean_travel_time_seconds: -10 },
     });
+    expect(result.rounds[0].instances[0].signalTargetIds).toEqual(['node:02:04']);
     expect(result.manifest).toMatchObject({ hash: 'manifest-hash', snapshotId: 'snapshot-1', profileId: 'reference', provenance: 'synthetic', parameters: { deterministic: true }, seeds: { base: 42 } });
   });
 

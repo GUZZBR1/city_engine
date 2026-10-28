@@ -20,11 +20,14 @@ describe('ArenaPanel action evidence', () => {
             trips_requested: 10, trips_not_completed: 2 }, interventionMetrics: { trips_completed: 9, mean_travel_time_seconds: 110, mean_speed_kmh: 26,
             mean_queue_length_meters: 6, trips_requested: 10, trips_not_completed: 1 }, deltas: { trips_completed: 1, mean_travel_time_seconds: -10,
             mean_speed_kmh: 2, mean_queue_length_meters: -2, trips_requested: 0, trips_not_completed: -1 },
-        } }] }], error: null,
+        }, signalTargetIds: ['node:02:04'] }] }], error: null,
     } as unknown as ArenaPanelViewModel;
     const html = renderToStaticMarkup(createElement(ArenaPanel, { viewModel, horizonRounds: 1, onHorizonChange: vi.fn(), onStart: vi.fn() }));
-    expect(html).toContain('estratégias determinísticas de benchmark');
-    expect(html).toContain('Não são agentes de IA treinados');
+    expect(html).toContain('políticas determinísticas de benchmark');
+    expect(html).toContain('não são agentes treinados nem tomam decisões autônomas');
+    expect(html).toContain('PARTICIPANTES');
+    expect(html).toContain('Cruzamento</dt><dd>node:02:04');
+    expect(html).toContain('Janela</dt><dd>weekday-am');
     expect(html).toContain('SIMULADA e sintética');
     expect(html).toContain('uma única janela');
     expect(html).toContain('nem os misture com indicadores urbanos anuais');
@@ -37,5 +40,12 @@ describe('ArenaPanel action evidence', () => {
     expect(html).toContain('nenhuma rota solicitada passa pelos nós alterados');
     expect(html).toContain('Nenhuma rota passa no nó.');
     expect(html).toContain('aria-label="Métricas da comparação SUMO de instance-1"');
+
+    const legacyHtml = renderToStaticMarkup(createElement(ArenaPanel, {
+      viewModel: { ...viewModel, rounds: [] }, horizonRounds: 1, onHorizonChange: vi.fn(), onStart: vi.fn(),
+    }));
+    expect(legacyHtml).toContain('Cinco políticas de referência');
+    expect(legacyHtml).toContain('não são agentes treinados nem tomam decisões autônomas');
+    expect(legacyHtml).not.toContain('Comparação SUMO por instância');
   });
 });
