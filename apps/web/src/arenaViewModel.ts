@@ -101,6 +101,17 @@ function mapRoundInstance(item: ArenaJobDTO['rounds'][number]['instances'][numbe
     manifest_hash: string;
     round_record_hash: string;
   };
+  const proposal = record(item.proposal);
+  const proposedActions = Array.isArray(proposal?.actions) ? proposal.actions : [];
+  const executedActionIds = new Set(item.action_execution_evidence?.action_ids ?? []);
+  const signalTargetIds = [...new Set(proposedActions.flatMap((value) => {
+    const action = record(value);
+    return action?.action_type === 'signal_timing_change' &&
+      typeof action.action_id === 'string' && executedActionIds.has(action.action_id) &&
+      typeof action.target_id === 'string'
+      ? [action.target_id]
+      : [];
+  }))];
   return {
     instanceId: item.instance_id,
     observedCityStateHash: extended.observed_city_state_hash,
@@ -127,6 +138,7 @@ function mapRoundInstance(item: ArenaJobDTO['rounds'][number]['instances'][numbe
       deltas: record(item.action_execution_evidence.details.deltas) as Record<string, number | null>,
       limitations: item.action_execution_evidence.details.limitations as string[],
     } : item.action_execution_evidence,
+    signalTargetIds,
     metrics: item.indicators.map((indicator) => ({
       id: indicator.indicator_id,
       label: indicator.indicator_id.replace(/[_-]+/g, ' '),

@@ -50,6 +50,7 @@ export interface ArenaPanelRoundInstance {
   decision: 'accepted' | 'rejected' | 'no_action';
   metrics: ArenaPanelMetric[];
   actionExecutionEvidence?: ArenaPanelActionExecutionEvidence | null;
+  signalTargetIds?: string[];
 }
 
 export interface ArenaPanelActionExecutionEvidence {
@@ -190,7 +191,7 @@ export function ArenaPanel({
         <div>
           <p className="arena-eyebrow">SIMULAÇÃO ANUAL</p>
           <h2 id="arena-panel-title">Arena anual · Aurora sintética</h2>
-          <p className="arena-panel-description">Cinco instâncias independentes com estratégias determinísticas de benchmark: baseline e heurísticas semafóricas quando SUMO está disponível. Não são agentes de IA treinados. Resultados sintéticos para exploração; sem ranking, vencedor ou score.</p>
+          <p className="arena-panel-description">Os cinco participantes são políticas determinísticas de benchmark para temporização semafórica; não são agentes treinados nem tomam decisões autônomas. A comparação usa Aurora sintética. Cruzamento e janela aparecem na evidência de cada execução quando a resposta os identifica. Resultados sintéticos para exploração; sem ranking, vencedor ou score.</p>
         </div>
         <span className="arena-synthetic-label"><span aria-hidden="true">◇</span> AURORA SINTÉTICA</span>
       </header>
@@ -232,7 +233,7 @@ export function ArenaPanel({
 
       {viewModel && <>
         <div className="arena-instance-section">
-          <div className="arena-section-heading"><div><p className="arena-eyebrow">INSTÂNCIAS</p><h3>Cinco instâncias de referência</h3></div><span>{viewModel.instances.length} / {instanceCount}</span></div>
+          <div className="arena-section-heading"><div><p className="arena-eyebrow">PARTICIPANTES</p><h3>Cinco políticas de referência</h3></div><span>{viewModel.instances.length} / {instanceCount}</span></div>
           <ul className="arena-instance-list">
             {viewModel.instances.map((instance, index) => <li key={instance.instanceId}>
               <span className="arena-instance-number" aria-hidden="true">0{index + 1}</span>
@@ -288,6 +289,7 @@ export function ArenaPanel({
               return <article className="arena-evidence-card" key={result.instanceId} aria-label={`Evidência SUMO de ${result.instanceId}`}>
                 <h4>{policy?.policyId ?? result.instanceId} <small>· {result.instanceId}</small></h4>
                 <p className="arena-evidence-meta">Janela {evidence.windowId} · semente {evidence.seed} · {evidence.engine} {evidence.engineVersion}</p>
+                <dl className="arena-evidence-scope"><div><dt>Cidade</dt><dd>Aurora sintética</dd></div><div><dt>Cruzamento</dt><dd>{result.signalTargetIds?.length ? result.signalTargetIds.join(', ') : 'não informado nesta resposta'}</dd></div><div><dt>Janela</dt><dd>{evidence.windowId}</dd></div></dl>
                 <p className="arena-evidence-meta">Exposição das rotas: {routeExposureLabels[evidence.routeExposure]}</p>
                 <p className="arena-evidence-actions">Ações: {evidence.actionIds.length ? evidence.actionIds.join(', ') : 'nenhuma ação identificada'}</p>
                 <div className="arena-table-scroll" tabIndex={0} aria-label={`Métricas da comparação SUMO de ${result.instanceId}`}>

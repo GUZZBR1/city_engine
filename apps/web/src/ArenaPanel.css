@@ -73,6 +73,10 @@
 .arena-evidence-card h4{margin:0;color:#3d5548;font-size:12px}
 .arena-evidence-card h4 small{color:#808a83;font-weight:400}
 .arena-evidence-meta,.arena-evidence-actions{margin:6px 0;color:#68736c;font-size:10px;line-height:1.5}
+.arena-evidence-scope{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:10px 0;color:#5f6a63;font-size:10px}
+.arena-evidence-scope div{min-width:0}
+.arena-evidence-scope dt{margin-bottom:3px;color:#89928c;font-size:9px}
+.arena-evidence-scope dd{margin:0;overflow-wrap:anywhere}
 .arena-evidence-card table{margin-top:8px}
 .arena-evidence-hashes{display:flex;gap:18px;flex-wrap:wrap;margin:10px 0 0}
 .arena-evidence-hashes div{display:grid;gap:4px;min-width:0}
