@@ -1,7 +1,7 @@
 # Agentes decisores da Urban Twin Arena — especificação v1
 
-**Status:** proposta de contrato; interfaces de agente ainda não implementadas  
-**Escopo:** cinco políticas decisoras em cópias independentes de Aurora e duas políticas de referência  
+**Status:** proposta de contrato; interfaces de agente ainda não implementadas
+**Escopo:** cinco políticas decisoras em cópias independentes de Aurora e duas políticas de referência
 **Base:** [conceito da Arena](../conceito/urban-twin-arena.md), [arquitetura completa](../arquitetura/arquitetura-completa-urban-twin-arena.md), [especificação de Aurora sintética](../arquitetura/cidade-sintetica-urban-twin-arena.md) e `configs/cities/aurora-base-v1.yaml`
 
 ## 1. Propósito e vocabulário
